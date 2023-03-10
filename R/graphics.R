@@ -269,6 +269,15 @@ plotSpectrum <- function(spectrum,
 #'  Length 1 or same length as spectrumList argument
 #' @param spectrumWidths vector specifying the linewidths of the different spectra.
 #'  Length 1 or same length as spectrumList argument
+#' @param spectrumAllowChange default is FALSE, ignores parameters 'spectrumShift'
+#'  and 'spectrumScale'. If TRUE then parameters are used. Note that parameters
+#'  don't do anything or are unpredictable when parameter 'intensityPercentage'
+#'  is set to TRUE
+#' @param spectrumShift determines with how much the spectrum intensities are to
+#'  be increased: default is 0 (Length 1 or same length as spectrumList argument)
+#' @param spectrumScale determines with how much the spectrum intensities are to
+#'  be scaled (multiplied): default is 1 (Length 1 or same length as spectrumList
+#'  argument)
 #' @param mzLimits two element numeric vector. Essentially the limits of the x-axis
 #'  (m/z)
 #' @param intensityLimits two element numeric vector. Essentially the limits of the
@@ -308,8 +317,8 @@ plotSpectrumOverlay <- function(spectrumList,
                                 spectrumLineTypes = "solid",
                                 spectrumAlphas = 1,
                                 spectrumWidths = 0.25,
-                                spectrumXShifts = 0, spectrumXShiftsRandom = FALSE,
-                                spectrumYShifts = 0, spectrumYShiftsRandom = FALSE,
+                                spectrumAllowChange = F,
+                                spectrumShift = 0, spectrumScale = 1,
                                 mzLimits = NULL, intensityLimits = NULL,
                                 incrScaleIntensity = 0.05, scaleIntensityLocal = TRUE,
                                 intensityPercentage = FALSE,
@@ -341,11 +350,16 @@ plotSpectrumOverlay <- function(spectrumList,
         if (length(spectrumWidths) == 1){
                 spectrumWidths <- rep(spectrumWidths, length(spectrumList))
         }
-        if (length(spectrumXShifts) == 1){
-                spectrumXShifts <- rep(spectrumXShifts, length(spectrumList))
-        }
-        if (length(spectrumYShifts) == 1){
-                spectrumYShifts <- rep(spectrumYShifts, length(spectrumList))
+        if (spectrumAllowChange){
+                if (length(spectrumShift) == 1){
+                        spectrumShift <- rep(spectrumShift, length(spectrumList))
+                }
+                if (length(spectrumScale) == 1){
+                        spectrumScale <- rep(spectrumScale, length(spectrumList))
+                }
+                for (counter in 1:length(spectrumList)){
+                        spectrumList[[counter]]$intensity <- spectrumShift[counter] + (spectrumScale[counter] * spectrumList[[counter]]$intensity)
+                }
         }
         yMaxStored <- max(spectrumList[[1]]$intensity)
         if (intensityPercentage){
@@ -521,10 +535,6 @@ plotChromatogram <- function(chromatogram,
                              labelNudge_y = ifelse(labelsLabel == "peak_rt",
                                                    0.02,
                                                    0.025),
-                             # indicateLeftRight = FALSE,
-                             # indicateColor = c("blue","red"),
-                             # indicateAlpha = 0.5,
-                             # indicateHeight = 0.05,
                              chromatogramTitle = waiver(),
                              chromatogramSubtitle = waiver(),
                              chromatogramCaption = waiver(),
@@ -570,7 +580,7 @@ plotChromatogram <- function(chromatogram,
                 }
                 if (nrow(labels)>0){
                         labels$actualLabels <- labelsLabelFormat(labels[,labelsLabel])
-                        g <- g + geom_text(data = labels, aes_string(x = "peak_rt", y = "peak_intensity", label = "actualLabels"), angle = labelAngle,
+                        g <- g + geom_text(data = labels, aes(x = peak_rt, y = peak_intensity, label = actualLabels), angle = labelAngle,
                                            color = labelColor, check_overlap = labelOverlap, size = labelSize,
                                            nudge_y = labelNudge_y*maxY, nudge_x = labelNudge_x*rtRangeSize)
                         # if (indicateLeftRight){
@@ -583,6 +593,167 @@ plotChromatogram <- function(chromatogram,
                         # }
                 }
         }
+        if (!is.null(rtLimits)){
+                g <- g + scale_x_continuous(expand = c(0,0),limits = rtLimits, labels = rtLabelFormat)
+        } else {
+                g <- g + scale_x_continuous(labels = rtLabelFormat)
+        }
+        if (!is.null(intensityLimits)){
+                g <- g + scale_y_continuous(expand = c(0,0), limits = intensityLimits, labels = intensityLabelFormat)
+        } else {
+                g <- g + scale_y_continuous(expand = c(0,0), limits = c(0,maxY), labels = intensityLabelFormat)
+        }
+        g <- g + labs(title = chromatogramTitle, subtitle = chromatogramSubtitle, caption = chromatogramCaption,
+                      x = rtTitle, y = intensityTitle)
+        g <- g + theme_classic()
+        if (!plot.margins.default){
+                g <- g + ggplot2::theme(plot.margin = ggplot2::unit(plot.margins, plot.margins.units))
+        }
+        return(g)
+}
+
+#' Creates a plot of a list of chromatograms, rt (retention time) will be on the x-axis,
+#'  intensity on the y-axis 
+#'
+#' @param chromatogramList list of data.frame's (chromatograms)
+#' @param chromatogramColors vector specifying the colors of the different chromatograms,
+#'  eg c("red","black"). Length 1 or same length as chromatogramList argument
+#' @param chromatogramLineTypes vector specifying the linetypes of the different chromatograms.
+#'  Length 1 or same length as chromatogramList argument
+#' @param chromatogramAlphas vector specifying the alphas of the different chromatograms.
+#'  Length 1 or same length as chromatogramList argument
+#' @param chromatogramWidths vector specifying the linewidths of the different chromatograms.
+#'  Length 1 or same length as chromatogramList argument
+#' @param chromatogramAllowChange default is FALSE, ignores parameters 'chromatogramShift'
+#'  and 'chromatogramScale'. If TRUE then parameters are used. Note that parameters
+#'  don't do anything or are unpredictable when parameter 'intensityPercentage'
+#'  is set to TRUE
+#' @param chromatogramShift determines with how much the chromatogram intensities are to
+#'  be increased: default is 0 (Length 1 or same length as chromatogramList argument)
+#' @param chromatogramScale determines with how much the chromatogram intensities are to
+#'  be scaled (multiplied): default is 1 (Length 1 or same length as chromatogramList
+#'  argument)
+#' @param rtLimits two element numeric vector. Essentially the limits of the x-axis
+#'  (rt, retention time)
+#' @param intensityLimits two element numeric vector. Essentially the limits of the
+#'  y-axis (intensity) 
+#' @param incrScaleIntensity numeric value which specifies the factor with which to
+#'  increase the y-axis limit
+#' @param scaleIntensityLocal logical vector which determines whether to use global
+#'  intensities (FALSE) or only the intensities of m/z's which fall within the rtLimits
+#'  (TRUE, default)
+#' @param intensityPercentage Whether to display the intensity axis in percentages
+#'  (default FALSE)
+#' @param rtLabelFormat defines the format of the rt (x) axis labels.
+#'  See eg ?formatDigits. Default is ggplot2::waiver() which ensures 'standard'
+#'  formatting
+#' @param IntensityLabelFormat defines the format of the intensity (y) axis labels.
+#'  See eg ?formatDigits
+#' @param rtUnits together with rtTitle argument: label for x-axis
+#' @param rtTitle together with rtUnits argument: label for x-axis
+#' @param intensityTitle defines the label for y-axis (intensity)
+#' @param chromatogramTitle sets the title of the chromatogram
+#' @param chromatogramSubtitle sets the subtitle of the chromatogram
+#' @param chromatogramCaption sets the caption of the chromatogram
+#' @param plot.margins.default sets whether default ggplot margins are to be used
+#'  (default = FALSE)
+#' @param plot.margins sets the plot margin sizes/widths (4 element integer vector)
+#' @param plot.margins.units sets the units for the margin sizes/widths
+#'
+#' @return a ggplot object
+#' @export
+plotChromatogramOverlay <- function(chromatogramList,
+                                    chromatogramColors = "black",
+                                    chromatogramLineTypes = "solid",
+                                    chromatogramAlphas = 1,
+                                    chromatogramWidths = 0.25,
+                                    chromatogramAllowChange = F,
+                                    chromatogramShift = 0, chromatogramScale = 1,
+                                    rtLimits = NULL, intensityLimits = NULL,
+                                    incrScaleIntensity = 0.05, scaleIntensityLocal = TRUE,
+                                    intensityPercentage = FALSE,
+                                    rtLabelFormat = formatDigits(1), # ggplot2::waiver(),
+                                    intensityLabelFormat = ifelse(intensityPercentage,
+                                                                  formatDigits(0),
+                                                                  formatScientificDigits(4)),
+                                    rtUnits = "(mins)",
+                                    rtTitle = paste0("rt ", rtUnits),
+                                    intensityTitle = ifelse(intensityPercentage,
+                                                            "Intensity (%)",
+                                                            "Intensity"),
+                                    chromatogramTitle = waiver(),
+                                    chromatogramSubtitle = waiver(),
+                                    chromatogramCaption = waiver(),
+                                    plot.margins.default = FALSE,
+                                    plot.margins = c(5,15,5,5),
+                                    plot.margins.units = "points"){
+        if (length(chromatogramColors) == 1){
+                chromatogramColors <- rep(chromatogramColors, length(chromatogramList))
+        }
+        if (length(chromatogramLineTypes) == 1){
+                chromatogramLineTypes <- rep(chromatogramLineTypes, length(chromatogramList))
+        }
+        if (length(chromatogramAlphas) == 1){
+                chromatogramAlphas <- rep(chromatogramAlphas, length(chromatogramList))
+        }
+        if (length(chromatogramWidths) == 1){
+                chromatogramWidths <- rep(chromatogramWidths, length(chromatogramList))
+        }
+        if (chromatogramAllowChange){
+                if (length(chromatogramShift) == 1){
+                        chromatogramShift <- rep(chromatogramShift, length(chromatogramList))
+                }
+                if (length(chromatogramScale) == 1){
+                        chromatogramScale <- rep(chromatogramScale, length(chromatogramList))
+                }
+                for (counter in 1:length(chromatogramList)){
+                        chromatogramList[[counter]]$intensity <- chromatogramShift[counter] + (chromatogramScale[counter] * chromatogramList[[counter]]$intensity)
+                }
+        }
+        yMaxStored <- max(chromatogramList[[1]]$intensity)
+        if (intensityPercentage){
+                chromatogramList[[1]]$intensity <- (chromatogramList[[1]]$intensity/yMaxStored)*100
+        }
+        for (counter in 2:length(chromatogramList)){
+                yMaxStored2 <- max(chromatogramList[[counter]]$intensity)
+                if (intensityPercentage){
+                        chromatogramList[[counter]]$intensity <- (chromatogramList[[counter]]$intensity/yMaxStored2)*100
+                }
+                yMaxStored <- max(yMaxStored, yMaxStored2)
+        }
+        if ((!scaleIntensityLocal) | (is.null(rtLimits))){
+                maxY <- yMaxStored
+        } else {
+                maxY <- max(chromatogramList[[1]][(chromatogramList[[1]]$rt >= rtLimits[1]) & (chromatogramList[[1]]$rt <= rtLimits[2]),]$intensity)
+                
+                for (counter in 2:length(chromatogramList)){
+                        maxY <- max(c(maxY, max(chromatogramList[[counter]][(chromatogramList[[counter]]$rt >= rtLimits[1]) & (chromatogramList[[counter]]$rt <= rtLimits[2]),]$intensity)))
+                }
+        }
+        if (!is.null(rtLimits)){
+                minRt <- rtLimits[1]
+                maxRt <- rtLimits[2]
+        } else {
+                maxRt <- max(chromatogramList[[1]]$rt)
+                minRt <- min(chromatogramList[[1]]$rt)
+                for (counter in 2:length(chromatogramList)){
+                        maxRt <- max(c(maxRt, max(chromatogramList[[counter]]$rt)))
+                        minRt <- min(c(minRt, min(chromatogramList[[counter]]$rt)))
+                }
+        }
+        rtRangeSize <- maxRt - minRt
+        
+        maxY <- (1+incrScaleIntensity) * maxY
+        
+        g <- ggplot()
+        for (counter in 1:length(chromatogramList)){
+                g <- g + geom_line(data = chromatogramList[[counter]], aes(x = rt, y = intensity),
+                                   color = chromatogramColors[counter],
+                                   alpha = chromatogramAlphas[counter],
+                                   linetype = chromatogramLineTypes[counter],
+                                   linewidth = chromatogramWidths[counter])
+        }
+        
         if (!is.null(rtLimits)){
                 g <- g + scale_x_continuous(expand = c(0,0),limits = rtLimits, labels = rtLabelFormat)
         } else {

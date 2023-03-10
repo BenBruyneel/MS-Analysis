@@ -38,6 +38,52 @@ createIonSeries <- function(whichSeries = "y",  theSeries = NA, whichCharge = 1,
         }
 }
 
+#' origin: developed for spectrum read info thermo
+#'
+#' @param elementList 
+#' @param removeLarger 
+#' @param collapseCharacter 
+#' @param namesRemoveCharacters 
+#' @param namesReplaceCharacters 
+#'
+#' @return
+#' @export
+#'
+#' @examples
+multiToSingleElement <- function(elementList, removeLarger = 10, collapseCharacter = "-",
+                                 namesRemoveCharacters = c(":","\\.","\\(","\\)"),
+                                 namesReplaceCharacters = data.frame(pattern = c("[:space:]+",
+                                                                                 "\001"),
+                                                                     replacement = c("_",
+                                                                                     "Unk"))){
+        elementLengths <- unname(map_int(elementList, ~length(.x)))
+        # remove too large elements
+        if (!is.na(removeLarger)){
+                elementList <- elementList[elementLengths < removeLarger]
+                elementLengths <- elementLengths[elementLengths < removeLarger]
+        }
+        if (!identical(namesRemoveCharacters, NA)){
+                names(elementList) <- stringr::str_replace_all(names(elementList),
+                                                               pattern = ifelse(length(namesRemoveCharacters) == 1,
+                                                                                namesRemoveCharacters,
+                                                                                paste(namesRemoveCharacters, collapse = "|")), 
+                                                               replacement = "")
+        }
+        if (!identical(namesReplaceCharacters, NA)){
+                for (counter in 1:nrow(namesReplaceCharacters)){
+                        names(elementList) <- stringr::str_replace_all(names(elementList),
+                                                                       pattern = namesReplaceCharacters$pattern[counter],
+                                                                       replacement = namesReplaceCharacters$replacement[counter])
+                }
+        }
+        if (!is.na(collapseCharacter)){
+                elementList <- map2(elementList, elementLengths, ~ifelse(.y == 1,
+                                                                         .x,
+                                                                         paste(.x, collapse = collapseCharacter)))
+        }
+        return(elementList)
+}
+
 #' function to (several) combine spectra into one
 #' 
 #' @note experimental function

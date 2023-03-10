@@ -2,6 +2,19 @@
 library(purrr)
 library(stringr)
 
+multiFileInfoThermo <- function(filename, readIndex = TRUE, collapseCharacter ="-"){
+        force(filename)
+        force(readIndex)
+        force(collapseCharacter)
+        result <- list()
+        for (counter in 1:length(filename)){
+                result[[counter]] <- fileInfoThermo(filename = filename[counter],
+                                                    readIndex = readIndex,
+                                                    collapseCharacter = collapseCharacter)
+        }
+        return(result)
+}
+
 strReplaceAll <- function(string, pattern = NA, replacement = ""){
         if (identical(pattern, NA)){
                 return(string)

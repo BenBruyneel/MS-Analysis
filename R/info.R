@@ -34,14 +34,14 @@ info <- R6::R6Class(
                 #' 
                 #' @return logical vector
                 evaluate_ = function(){
-                      condition = (nrow(private$info_) == length(private$data_))
-                      if (is.null(condition)){
-                              condition = FALSE
-                      }
-                      if (!condition & self$showWarnings){
-                              warning("Dimensions of data & info do not match")
-                      }
-                      return(condition)
+                        condition = (nrow(private$info_) == length(private$data_))
+                        if (is.null(condition)){
+                                condition = FALSE
+                        }
+                        if (!condition & self$showWarnings){
+                                warning("Dimensions of data & info do not match")
+                        }
+                        return(condition)
                 },
                 #' @description internal function that saves either the info_ data.frame or the
                 #'  data_ list
@@ -440,7 +440,7 @@ info <- R6::R6Class(
         )
 )
 
-# ---- info db ----
+# ---- info DB ----
 
 #' R6 Class extension to 'info' class with basic database support
 #'  
@@ -449,9 +449,11 @@ info <- R6::R6Class(
 #'  
 #' @note all elements in the data_ list must be data.frames with the exact same columns
 #'
+#' @note slowest of all types (especially when loading), but generates smallest database files
+#'
 #' @export 
 infoDB <- R6::R6Class(
-        "infodb",
+        "infoDB",
         inherit = info,
         private = list(
                 dbType_ = "SQLite",
@@ -472,7 +474,7 @@ infoDB <- R6::R6Class(
                 #'  gives the names of the database tables for info_ and data_. Nothing more than pasting togther
                 #'  the 'filename'/'name' field with either '_info' and '_data'
                 #'  
-                #' @param saveWhat defines which tablename to return. Can only be "info" or "data"
+                #' @param whichTable defines which tablename to return. Can only be "info" or "data"
                 #' 
                 #' @note convenience function, nothing more
                 tableName_ = function(whichTable){
@@ -704,7 +706,7 @@ infoDB <- R6::R6Class(
 #'
 #' @export 
 infoDBVariable <- R6::R6Class(
-        "infodbVariable",
+        "infoDBVariable",
         inherit = infoDB,
         private = list(
                 #' @description
@@ -829,6 +831,264 @@ infoDBVariable <- R6::R6Class(
         active = list()
 )
 
+# ---- info Database ----
+
+#' R6 Class extension to 'info' class with different database functionality
+#'  
+#' @description 
+#'  The data in the data_ list is saved in two tables: data & info (or whatever)
+#'  
+#' @note The elements in the data_ list must be data.frames with the exact same columns
+#' @note No column in the data_ data.frames can be named 'id'
+#' @note this is preferred type for info 'database' objects. When saved, it's closest
+#'  to a 'regular' database
+#'
+#' @export 
+infoDatabase <- R6::R6Class(
+        "infoDatabase",
+        inherit = info,
+        private = list(
+                dbType_ = "SQLite",
+                # no real function at this time, database workings are handled by database functions
+                # of the BBPersonalR package
+                infoTablename_ = "info",
+                # defines the name of the table name for the info_ data.frame
+                dataTablename_ = "data",
+                # defines the name of the table name for the data_ list
+                # all data.frame's in the data_list are combined together into one big table with each
+                # separate data.frame in it's own row. See ?BBPersonalR::convertDFtoDB for more info
+                
+                #' @description
+                #'  gives the names of the database tables for info_ and data_. The names for the data_ tables
+                #'  are numbered (first element is 1, second 2, and so on)
+                #'  
+                #' @param whichTable defines which table name to return. Can only be "info" or "data"
+                #' 
+                #' @note convenience function, nothing more
+                tableName_ = function(whichTable){
+                        return(
+                                switch(whichTable,
+                                       info = ifelse(self$filename != "",
+                                                     paste(c(self$filename,"_",self$infoTableName), collapse = ""),
+                                                     self$infoTableName),
+                                       data = ifelse(self$filename != "",
+                                                     paste(c(self$filename,"_",self$dataTableName), collapse = ""),
+                                                     self$dataTableName))
+                        )
+                },
+                #' @description 
+                #'  saves either the info_ data.frame or the data_ list (list of data.frame's) to the database
+                #'  
+                #' @param db database access 'handle' to be closed. Database needs to be open!
+                #'  Opening & closing the database shpuld be handled outside the object's code
+                #' @param saveWhat defines what should be saved. Can only be "info" or "data"
+                #' @param overwrite logical vector that defines what to do if there is already
+                #'  a table with the filename to be used
+                #' 
+                #' @return logical vector: TRUE if save was successful, FALSE if unsuccessful 
+                save_ = function(db, overwrite = TRUE){
+                        if (self$length == 0){
+                                return(FALSE)
+                        }
+                        tablesPresent <- pool::dbListTables(db)
+                        if (length(tablesPresent)>0){
+                                infoPresent <- private$tableName_("info") %in% tablesPresent
+                                dataPresent <- private$tableName_("data") %in% tablesPresent
+                                if (infoPresent | dataPresent){
+                                        if (!overwrite & self$showWarnings){
+                                                # abort save action
+                                                tablePresent <- ifelse(infoPresent,
+                                                                       ifelse(dataPresent,
+                                                                              paste(c(private$tableName_("info"), " & ",private$tableName_("data")), collapse =""),
+                                                                              private$tableName_("info")),
+                                                                       private$tableName_("data"))
+                                                warning(paste(c("Table(s) ", tablePresent," already exists & overwrite is FALSE"), collapse = ""))
+                                                return(FALSE)
+                                        } else {
+                                                if (infoPresent){
+                                                        db_deleteTable(db, private$tableName_("info"))
+                                                }
+                                                if (dataPresent){
+                                                        db_deleteTable(db, private$tableName_("data"))
+                                                }
+                                                
+                                        }
+                                }
+                        }
+                        # save info
+                        db_createTable(db = db,
+                                       tableName = private$tableName_("info"),
+                                       dataframe = private$info_,
+                                       addPrimary = TRUE,
+                                       primaryKeyName = "id",
+                                       dbType = private$dbType_)
+                        # save data
+                        # change empty data_ elements into empty data.frame's
+                        # there must be at least one data element with a data.frame
+                        if (sum(is.na(private$data_)) > 0){
+                                emptyData <- which(is.na(private$data_))
+                                private$data_[[emptyData]] <- data.frame(noData = as.character(NA))
+                        }
+                        db_createTable(db = db,
+                                       tableName = private$tableName_("data"),
+                                       dataframe = dplyr::bind_cols(private$data_[[1]], data.frame(id = private$info_$id[1])),
+                                       # dataframe = convertDFtoDB(list(private$data_[[counter]]),
+                                       #                           saveClasses = TRUE,
+                                       #                           toBlob = private$blobConvert_,
+                                       #                           type = private$compression_),
+                                       addPrimary = FALSE,
+                                       foreignKeys = data.frame(idName = "id", referenceTable = private$tableName_("info"), referencePrimaryKey ="id"),
+                                       dbType = private$dbType_)
+                        if (self$length > 1){
+                                for (counter in 2:self$length){
+                                        db_writeTable(db = db,
+                                                      tableName = private$tableName_("data"),
+                                                      theTable = dplyr::bind_cols(private$data_[[counter]], data.frame(id = private$info_$id[counter])),
+                                                      primaryKeyName = NA)
+                                }
+                        }
+                        return(TRUE)
+                },
+                #' @description
+                #'  internal function that loads either the info_ data.frame or the data_ list from
+                #'  the database
+                #'  
+                #' @param db database access 'handle' to be closed. Database needs to be open!
+                #'  Opening & closing the database shpuld be handled outside the object's code
+                #'  
+                #' @return logical vector: TRUE if load_ was successful, FALSE if unsuccessful
+                load_ = function(db){
+                        if (private$tableName_("info") %in% pool::dbListTables(db)){
+                                private$info_ <- db_getTable(db = db,
+                                                             tableName = private$tableName_("info"))
+                        } else {
+                                return(FALSE)
+                        }
+                        if (private$tableName_("data") %in% pool::dbListTables(db)){
+                                columnsInData <- pool::dbListFields(db, private$tableName_("data"))
+                                columnsInData <- columnsInData[columnsInData != "id"]
+                                for (counter in 1:nrow(self$info)){
+                                        private$data_[[counter]] <- db_getColumn(db = db,
+                                                                                 tableName = private$tableName_("data"),
+                                                                                 column = columnsInData,
+                                                                                 where = paste(c("id = ",private$info_$id[counter]), collapse = "")
+                                        )
+                                }
+                        } else {
+                                return(FALSE)
+                        }
+                        return(TRUE)
+                }
+        ),
+        public = list(
+                #' @description saves the info_ data.frame and if that is successful saves
+                #'  the data_ list to a database
+                #'  
+                #' @param db database access 'handle' to be closed. Database needs to be open!
+                #'  Opening & closing the database shpuld be handled outside the object's code
+                #' @param overwrite logical vector that defines what to do if there is already
+                #'  a table with the tablename to be used
+                #'  
+                #' @return logical vector TRUE if save was completely successful, FALSE if
+                #'  one or both were unsuccessful. Note that if the info_ data.frame is
+                #'  successfully saved, but the data_ list is not (for whatever reason),
+                #'  then FALSE will be returned. Also note that if the info_ data.frame
+                #'  could not be saved, that there will be no attempt at saving the data_ list.
+                save = function(db, overwrite = TRUE){
+                        if (!self$empty){
+                                return(private$save_(db, overwrite = overwrite))
+                        }
+                        return(FALSE)
+                },
+                #' @description loads the info_ data.frame and if that is successful loads
+                #'  the data_ list
+                #'  
+                #' @param db database access 'handle' to be closed. Database needs to be open!
+                #'  Opening & closing the database shpuld be handled outside the object's code
+                #'  
+                #' @return logical vector TRUE if load was completely successful, FALSE if
+                #'  one or both were unsuccessful. Note that if the info_ data.frame is
+                #'  successfully loaded, but the data_ list is not (for whatever reason),
+                #'  then FALSE will be returned. Also note that if the info_ data.frame
+                #'  could not be loaded, that there will be no attempt at loading the
+                #'  data_ list
+                #'  
+                #' @note the original info_ data.frame will be restored if loading
+                #'  the data_ list fails
+                load = function(db){
+                        saveOld <- list(
+                                info_ = private$info_,
+                                data_ = private$data_
+                        )
+                        if (private$load_(db = db)){
+                                return(TRUE)
+                        } else {
+                                # restore old info
+                                private$info_ <- saveOld$info_
+                                private$data_ <- saveOld$data_
+                        }
+                        return(FALSE)
+                }
+        ),
+        active = list(
+                #' @field databaseType allows for the setting of the database type
+                #'  currently has no function in the object
+                databaseType = function(value){
+                        if (missing(value)){
+                                return(private$dbType_)
+                        } else {
+                                if (value == "SQLite"){
+                                        private$dbType <- value
+                                } else {
+                                        if (self$showWarnings){
+                                                warning(paste(c("Database type '", value, "' not supported! ")))
+                                        }
+                                }
+                        }
+                },
+                #' @field infoTableName can be used to overwrite the info table name
+                infoTableName = function(value){
+                        if (missing(value)){
+                                return(private$infoTablename_)
+                        } else {
+                                if (value != private$dataTablename_){
+                                        private$infoTablename_ <- value
+                                } else {
+                                        if (self$showWarnings){
+                                                warning("info & data table names must be different.")
+                                        }
+                                }
+                        }
+                },
+                #' @field dataTableName can be used to overwrite the data table name
+                dataTableName = function(value){
+                        if (missing(value)){
+                                return(private$dataTablename_)
+                        } else {
+                                if (value != private$infoTablename_){
+                                        private$dataTablename_ <- value
+                                } else {
+                                        if (self$showWarnings){
+                                                warning("info & data table names must be different.")
+                                        }
+                                }
+                        }
+                },
+                #' @field objectName in stead of filename, a bit redundant perhaps, but exists since
+                #'  the info and data are saved to a database and not a (simple) file anymore. filename
+                #'  can still be used. A future use could be to put some limits on the objectName since
+                #'  it is part of the tablenames in the database
+                objectName = function(value){
+                        if (missing(value)){
+                                return(private$filename_)
+                        } else {
+                                private$filename_ = value
+                        }
+                }
+        )
+)
+
+
 # ---- infoList ----
 
 #' R6 Class to deal with a group of "info" objects in an organized manner
@@ -849,7 +1109,7 @@ infoList <- R6::R6Class(
                 # a 'stop'
                 showWarnings = TRUE,
                 # logical vector which defines whether warnings are to be shown
-
+                
                 #' @description
                 #' Create a new peptide object
                 #'

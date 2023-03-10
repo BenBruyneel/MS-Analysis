@@ -30,8 +30,8 @@ library(stringr)
 #' @return a function that will smoothen the data in a data.frame provided
 #' @export
 smoothFunction.loess <- function(x = "mz", y = "intensity",
-                        formula = paste(c(y, x),
-                                        collapse = "~"), span = 0.1){
+                                 formula = paste(c(y, x),
+                                                 collapse = "~"), span = 0.1){
         force(x)
         force(y)
         force(formula)
@@ -70,9 +70,9 @@ smoothFunction.loess <- function(x = "mz", y = "intensity",
 #' @return a data.frame of the smoothed data or list of info & data
 #' @export
 smoothData <- function(data, smoothFunction = smoothFunction.loess(),
-                        interval = 100, step = 10,
-                        keepMinimumZero = TRUE, verbose = FALSE,
-                        returnInfo = FALSE, xtraInfo = list()){
+                       interval = 100, step = 10,
+                       keepMinimumZero = TRUE, verbose = FALSE,
+                       returnInfo = FALSE, xtraInfo = list()){
         if (identical(interval, NA)){
                 interval <- nrow(data)
                 step <- 1
@@ -375,6 +375,9 @@ chromatogramFindAreas <- function(peaks, trace, auc = "trapezoid",
 #'  the right side will be added to the initial limit 
 #' @param includeIterateCounts logical vector. If TRUE that the iteration counts are
 #'  included in the resulting peak. Default is FALSE. For debugging/testing purposes
+#' @param maxLeftRight default is NA, if not NA, then a two-element numeric vector is expected
+#'  where the first one is the maximum distance between the left (rt) value and the peak maximum
+#'  and the second one is the maximum distance between the right (rt) value and the peak maximum
 #'
 #' @return the peak table data.frame with an area column
 #' @export
@@ -384,7 +387,8 @@ chromatogramFindAreas.Iterative <- function(peaks, trace, initialEdges = c(0.075
                                             maxIterations = c(10L,10L),
                                             iterationCutOff = c(0.05, 0.05),
                                             change = c(0.1,0.1),
-                                            includeIterateCounts = FALSE){
+                                            includeIterateCounts = FALSE,
+                                            maxLeftRight = NA){
         # baseline
         peaks <- chromatogramPeaksFixedEdges(peaks = peaks, edges = initialEdges)
         peaks <- chromatogramFindAreas(peaks = peaks, trace = trace, auc = auc, absoluteArea = absoluteArea, subDivisions = subDivisions, naRm = naRm)
@@ -434,6 +438,12 @@ chromatogramFindAreas.Iterative <- function(peaks, trace, initialEdges = c(0.075
         if (!includeIterateCounts){
                 peaks <- peaks %>% dplyr::select(-starts_with("iterate"))
         }
+        if (!identical(maxLeftRight, NA)){
+                peaks <- peaks %>%
+                        dplyr::mutate(left = max(left, peak_rt-maxLeftRight[1], na.rm = T),
+                                      right = min(right, peak_rt+maxLeftRight[2], na.rm = T))
+                peaks <- chromatogramFindAreas(peaks, trace = trace, auc = auc, absoluteArea = absoluteArea, subDivisions = subDivisions, naRm = naRm)
+        }
         return(peaks)
 }
 
@@ -474,6 +484,9 @@ chromatogramFindAreas.Iterative <- function(peaks, trace, initialEdges = c(0.075
 #'  Default is c("left","right")
 #' @param orderDirection a 2 named (left, right) element list of 2 element character vectors
 #'  which specify for each side the order or adjustment. 
+#' @param maxLeftRight default is NA, if not NA, then a two-element numeric vector is expected
+#'  where the first one is the maximum distance between the left (rt) value and the peak maximum
+#'  and the second one is the maximum distance between the right (rt) value and the peak maximum
 #'
 #' @return the peak table data.frame with an area column
 #' @export
@@ -485,7 +498,8 @@ chromatogramFindAreas.SideIterative <- function(peaks, trace, initialEdges = c(0
                                                 includeIterateCounts = FALSE, 
                                                 sides = c("left","right"),
                                                 orderDirection = list(left = c("left","right"),
-                                                                      right = c("right", "left"))){
+                                                                      right = c("right", "left")),
+                                                maxLeftRight = NA){
         # baseline
         peaks <- chromatogramPeaksFixedEdges(peaks = peaks, edges = initialEdges)
         peaks <- chromatogramFindAreas(peaks = peaks, trace = trace, auc = auc, absoluteArea = absoluteArea, subDivisions = subDivisions, naRm = naRm)
@@ -517,6 +531,12 @@ chromatogramFindAreas.SideIterative <- function(peaks, trace, initialEdges = c(0
                 peaks <- peaks %>% dplyr::select(-starts_with("iterate"))
         } else {
                 peaks <- peaks %>% dplyr::select(-c("iterate"))
+        }
+        if (!identical(maxLeftRight, NA)){
+                peaks <- peaks %>%
+                        dplyr::mutate(left = max(left, peak_rt-maxLeftRight[1], na.rm = T),
+                                      right = min(right, peak_rt+maxLeftRight[2], na.rm = T))
+                peaks <- chromatogramFindAreas(peaks, trace = trace, auc = auc, absoluteArea = absoluteArea, subDivisions = subDivisions, naRm = naRm)
         }
         return(peaks)
 }
@@ -572,57 +592,57 @@ spectrumDetectPeaks <- function(dataFrame,
                                 limitPercentage = NA,
                                 highest = TRUE,
                                 returnInfo = FALSE, xtraInfo = list()){ 
-  if (intensityPercentage){
-    dataFrame$intensity <- (dataFrame$intensity / max(dataFrame$intensity)) * 100
-  }
-  rts <- MALDIquant::detectPeaks(
-    MALDIquant::createMassSpectrum(
-      mass = dataFrame$mz,
-      intensity = dataFrame$intensity
-    ),
-    halfWindowSize = halfWindowSize,
-    span = span,
-    method = smoothing,
-    SNR = signalNoiseRatio)
-  tempdf <- data.frame(mz = rts@mass, intensity = rts@intensity, snr = rts@snr)
-  if (!identical(mzLimits, NA)){
-          tempdf <- tempdf %>% filter(mz >= mzLimits[1],
-                                      mz <= mzLimits[2])
-  }
-  if (!identical(limitPercentage, NA)){
-          tempdf <- tempdf %>%
-                  dplyr::mutate(perc = (intensity/max(intensity))*100) %>%
-                  dplyr::filter(perc >= limitPercentage) %>%
-                  dplyr::select(-perc)
-  }
-  if (!identical(limitNr, NA)){
-          if (highest){
-                  tempdf <- tempdf %>%
-                          arrange(desc(intensity)) %>%
-                          slice(1:limitNr)
-          } else {
-                  tempdf <- tempdf %>%
-                          arrange(intensity) %>%
-                          slice(1:limitNr)
-          }
-  }
-  if (!returnInfo){
-          return(tempdf)
-  } else {
-          return(readData(dataFrame = tempdf,
-                          columns = NA,
-                          columnNames = NA,
-                          rowNames = NULL,
-                          info = append(list(span = span,
-                                             halfWindowSize = halfWindowSize,
-                                             signalNoiseRatio = signalNoiseRatio,
-                                             smoothing = smoothing,
-                                             intensityPercentage = intensityPercentage,
-                                             source = "spectrum"),
-                                        xtraInfo)))
-  }
-  
-  
+        if (intensityPercentage){
+                dataFrame$intensity <- (dataFrame$intensity / max(dataFrame$intensity)) * 100
+        }
+        rts <- MALDIquant::detectPeaks(
+                MALDIquant::createMassSpectrum(
+                        mass = dataFrame$mz,
+                        intensity = dataFrame$intensity
+                ),
+                halfWindowSize = halfWindowSize,
+                span = span,
+                method = smoothing,
+                SNR = signalNoiseRatio)
+        tempdf <- data.frame(mz = rts@mass, intensity = rts@intensity, snr = rts@snr)
+        if (!identical(mzLimits, NA)){
+                tempdf <- tempdf %>% filter(mz >= mzLimits[1],
+                                            mz <= mzLimits[2])
+        }
+        if (!identical(limitPercentage, NA)){
+                tempdf <- tempdf %>%
+                        dplyr::mutate(perc = (intensity/max(intensity))*100) %>%
+                        dplyr::filter(perc >= limitPercentage) %>%
+                        dplyr::select(-perc)
+        }
+        if (!identical(limitNr, NA)){
+                if (highest){
+                        tempdf <- tempdf %>%
+                                arrange(desc(intensity)) %>%
+                                slice(1:limitNr)
+                } else {
+                        tempdf <- tempdf %>%
+                                arrange(intensity) %>%
+                                slice(1:limitNr)
+                }
+        }
+        if (!returnInfo){
+                return(tempdf)
+        } else {
+                return(readData(dataFrame = tempdf,
+                                columns = NA,
+                                columnNames = NA,
+                                rowNames = NULL,
+                                info = append(list(span = span,
+                                                   halfWindowSize = halfWindowSize,
+                                                   signalNoiseRatio = signalNoiseRatio,
+                                                   smoothing = smoothing,
+                                                   intensityPercentage = intensityPercentage,
+                                                   source = "spectrum"),
+                                              xtraInfo)))
+        }
+        
+        
 }
 
 #' function factory to generate a smoothing function for spectra
@@ -654,16 +674,16 @@ spectrumDetectPeaks <- function(dataFrame,
 #' @return a function that can do peak detection in a spectrum data.frame
 #' @export
 spectrumDetectPeaks.General <- function(
-                                 halfWindowSize = 50,
-                                 smoothing = "MAD",
-                                 span = "cv",
-                                 signalNoiseRatio = 2,
-                                 intensityPercentage = FALSE,
-                                 mzLimits = NA,
-                                 limitNr = NA,
-                                 limitPercentage = NA,
-                                 highest = TRUE,
-                                 returnInfo = FALSE, xtraInfo = list()){
+                halfWindowSize = 50,
+                smoothing = "MAD",
+                span = "cv",
+                signalNoiseRatio = 2,
+                intensityPercentage = FALSE,
+                mzLimits = NA,
+                limitNr = NA,
+                limitPercentage = NA,
+                highest = TRUE,
+                returnInfo = FALSE, xtraInfo = list()){
         force(halfWindowSize)
         force(smoothing)
         force(span)
@@ -729,28 +749,28 @@ spectrumDetectPeaks.Profile <- function(halfWindowSize = 50,
                                         limitPercentage = NA,
                                         highest = TRUE,
                                         returnInfo = FALSE, xtraInfo = list()){ 
-  force(halfWindowSize)
-  force(smoothing)
-  force(span)
-  force(intensityPercentage)
-  force(mzLimits)
-  force(limitNr)
-  force(limitPercentage)
-  force(highest)
-  force(returnInfo)
-  force(xtraInfo)
-  function(dataFrame){
-    return(spectrumDetectPeaks(dataFrame,
-                               halfWindowSize = halfWindowSize,
-                               smoothing = smoothing,
-                               span = span,
-                               intensityPercentage = intensityPercentage,
-                               mzLimits = mzLimits,
-                               limitNr = limitNr,
-                               limitPercentage = limitPercentage,
-                               highest = highest,
-                               returnInfo = returnInfo, xtraInfo = xtraInfo))
-  }
+        force(halfWindowSize)
+        force(smoothing)
+        force(span)
+        force(intensityPercentage)
+        force(mzLimits)
+        force(limitNr)
+        force(limitPercentage)
+        force(highest)
+        force(returnInfo)
+        force(xtraInfo)
+        function(dataFrame){
+                return(spectrumDetectPeaks(dataFrame,
+                                           halfWindowSize = halfWindowSize,
+                                           smoothing = smoothing,
+                                           span = span,
+                                           intensityPercentage = intensityPercentage,
+                                           mzLimits = mzLimits,
+                                           limitNr = limitNr,
+                                           limitPercentage = limitPercentage,
+                                           highest = highest,
+                                           returnInfo = returnInfo, xtraInfo = xtraInfo))
+        }
 }
 
 #' function factory to generate a smoothing function for centroid(ed) type spectra
@@ -794,30 +814,30 @@ spectrumDetectPeaks.Centroid <- function(halfWindowSize = 10,
                                          limitPercentage = NA,
                                          highest = TRUE,
                                          returnInfo = FALSE, xtraInfo = list()){
-  force(halfWindowSize)
-  force(smoothing)
-  force(span)
-  force(signalNoiseRatio)
-  force(intensityPercentage)
-  force(mzLimits)
-  force(limitNr)
-  force(limitPercentage)
-  force(highest)
-  force(returnInfo)
-  force(xtraInfo)
-  function(dataFrame){
-    return(spectrumDetectPeaks(dataFrame,
-                               halfWindowSize = halfWindowSize,
-                               smoothing = smoothing,
-                               span = span,
-                               signalNoiseRatio = signalNoiseRatio,
-                               intensityPercentage = intensityPercentage,
-                               mzLimits = mzLimits,
-                               limitNr = limitNr,
-                               limitPercentage = limitPercentage,
-                               highest = highest,
-                               returnInfo = returnInfo, xtraInfo = xtraInfo))
-  }
+        force(halfWindowSize)
+        force(smoothing)
+        force(span)
+        force(signalNoiseRatio)
+        force(intensityPercentage)
+        force(mzLimits)
+        force(limitNr)
+        force(limitPercentage)
+        force(highest)
+        force(returnInfo)
+        force(xtraInfo)
+        function(dataFrame){
+                return(spectrumDetectPeaks(dataFrame,
+                                           halfWindowSize = halfWindowSize,
+                                           smoothing = smoothing,
+                                           span = span,
+                                           signalNoiseRatio = signalNoiseRatio,
+                                           intensityPercentage = intensityPercentage,
+                                           mzLimits = mzLimits,
+                                           limitNr = limitNr,
+                                           limitPercentage = limitPercentage,
+                                           highest = highest,
+                                           returnInfo = returnInfo, xtraInfo = xtraInfo))
+        }
 }
 
 # ---- files scanIndex ----
@@ -838,6 +858,11 @@ spectrumDetectPeaks.Centroid <- function(halfWindowSize = 10,
 #' @param MSOrder specifies which experiment is to be selected ("Ms" for full ms, "Ms2" fro MS 2 spectra)
 #' @param charge specifies the charge(s) of the precursor ion to be selected to be selected (only makes
 #'  sense in case of MS 2)
+#' @param sortClose logical vector which determines if scans should be sorted on the bases of how close
+#'  the retention time is to argument 'rt'
+#' @param limitNr if sortClose is TRUE, then if this parameter can be set as an integer to specify the
+#'  number of closest scan numbers (based on rt) will be returned. Default is 1, if NA then all will be
+#'  returned
 #'
 #' @return numeric vector of the scan numbers in the scan index which are within the selection criteria
 #' @export
@@ -847,7 +872,9 @@ getScans <- function(scanIndex = NA, rt = 1,
                      precursorMass = NA,
                      precursorLimits = c(0.05,0.05),
                      MSOrder = NA,
-                     charge = NA){
+                     charge = NA,
+                     sortClose = TRUE,
+                     limitNr = 1){
         if (identical(scanIndex, NA)){
                 return(NA)
         }
@@ -866,5 +893,15 @@ getScans <- function(scanIndex = NA, rt = 1,
         }
         scanIndex <- scanIndex[scanIndex$rtinseconds/60 >= rt - rtLimits[1],]
         scanIndex <- scanIndex[scanIndex$rtinseconds/60 <= rt + rtLimits[2],]
+        if (sortClose){
+                scanIndex <- scanIndex %>% 
+                        dplyr::mutate(distance = abs(rt - (rtinseconds/60))) %>%
+                        dplyr::arrange(distance)
+                if (!is.na(limitNr)){
+                        scanIndex <- scanIndex %>%
+                                dplyr::slice(1:limitNr)
+                        
+                }
+        }
         return(scanIndex$scan)
 }

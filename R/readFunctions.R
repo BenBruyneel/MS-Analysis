@@ -319,7 +319,7 @@ fileInfo <- function(filename){
                 }
                 return(
                         list(info = list(filename = filename),
-                             data = NA)
+                             data = data.frame(data = NA))
                 )
         }
 }

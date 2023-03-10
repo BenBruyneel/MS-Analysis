@@ -17,7 +17,7 @@ MSInfo <- R6::R6Class(
         "MSInfo",
         inherit = infoList,
         private = list(
-                type_ = "dbVar"
+                type_ = "infoDatabase"
                 # internal variable defining type of info element to be used
                 # options are: "dbVar" for infoDBVariable, "db" for infoDB and 
                 # "rds" for info (non-database)
@@ -36,9 +36,9 @@ MSInfo <- R6::R6Class(
                 #'  object will be created
                 #'  
                 #' @return a new 'info' object
-                initialize = function(type = "dbVar"){
+                initialize = function(type = "infoDatabase"){
                         private$type_ <- type
-                        if (type == "db"){
+                        if (type == "infoDB"){
                                 private$info_[[1]] <- infoDB$new(name = "chromatograms")
                                 private$info_[[2]] <- infoDB$new(name = "spectra")
                                 private$info_[[3]] <- infoDB$new(name = "files")
@@ -50,23 +50,30 @@ MSInfo <- R6::R6Class(
                                         private$info_[[3]] <- info$new(name = "files")
                                         # private$info_[[4]] <- info$new(name = "peaks")
                                 } else {
-                                        if (type == "dbVar"){
+                                        if (type == "infoDBVariable"){
                                                 private$info_[[1]] <- infoDBVariable$new(name = "chromatograms")
                                                 private$info_[[2]] <- infoDBVariable$new(name = "spectra")
                                                 private$info_[[3]] <- infoDBVariable$new(name = "files")
                                                 # private$info_[[4]] <- infoDBVariable$new(name = "peaks")
                                         } else {
-                                                private$info_[[1]] <- NA
-                                                private$info_[[2]] <- NA
-                                                private$info_[[3]] <- NA
-                                                # private$info_[[4]] <- NA
+                                                if (type == "infoDatabase"){
+                                                        private$info_[[1]] <- infoDatabase$new(name = "chromatograms")
+                                                        private$info_[[2]] <- infoDatabase$new(name = "spectra")
+                                                        private$info_[[3]] <- infoDatabase$new(name = "files")
+                                                        # private$info_[[4]] <- infoDatabase$new(name = "peaks")
+                                                } else {
+                                                        private$info_[[1]] <- NA
+                                                        private$info_[[2]] <- NA
+                                                        private$info_[[3]] <- NA
+                                                        # private$info_[[4]] <- NA
+                                                }
                                         }
                                 }
                         }
                         names(private$info_) <- c("chromatograms",
                                                   "spectra",
                                                   "files")#,
-                                                  #"peaks")
+                        #"peaks")
                         invisible(self)
                 },
                 #' @description
@@ -91,7 +98,7 @@ MSInfo <- R6::R6Class(
                 #' @note this does not work if "rds" was chosen as type of info object
                 #'  (see initialize)
                 load = function(db){
-                        if (private$type_ %in%  c("db","dbVar")){
+                        if (private$type_ %in%  c("infoDB","infoDBVariable","infoDatabase")){
                                 tempL <- as.logical()
                                 for (counter in 1:self$length){
                                         tempL <- append(tempL, private$info_[[counter]]$load(db = db))
@@ -123,7 +130,7 @@ MSInfo <- R6::R6Class(
                 #' @note this does not work if "rds" was chosen as type of info object
                 #'  (see initialize)
                 save = function(db, overwrite = TRUE){
-                        if (private$type_ %in%  c("db","dbVar")){
+                        if (private$type_ %in%  c("infoDB","infoDBVariable","infoDatabase")){
                                 tempL <- as.logical()
                                 for (counter in 1:self$length){
                                         tempL <- append(tempL, private$info_[[counter]]$save(db = db, overwrite = overwrite))
@@ -231,7 +238,7 @@ MSInfo <- R6::R6Class(
                                                                      xtraInfo = list(traceId = self$chromatograms$idFromIndex(index)),
                                                                      ...))
                                 } else {
-                                        return(chromatogramDetectPeaksMethod(dataFrame = tempdf))
+                                        return(chromatogramDetectPeaksMethod(trace = tempdf, ...))
                                 }
                         } else {
                                 return(NA)
@@ -558,12 +565,12 @@ MSInfo <- R6::R6Class(
                         tempdf <- self$spectra$item(index)
                         if (!identical(tempdf, NA)){
                                 if (identical(spectrunDetectPeaksMethod, NA)){
-                                        if (identical(self$spectra$info$centroided[index], NA)){
+                                        if (identical(self$spectra$info$Is_Centroided[index], NA)){
                                                 return(spectrumDetectPeaks(dataFrame = tempdf,
                                                                            xtraInfo = list(traceId = self$spectra$idFromIndex(index)),
                                                                            ...))
                                         } else {
-                                                if (self$spectra$info$centroided[index]){
+                                                if (self$spectra$info$Is_Centroided[index]){
                                                         return(spectrumDetectPeaks.Centroid(xtraInfo = list(traceId = self$spectra$idFromIndex(index)), ...)(dataFrame = tempdf))
                                                 } else {
                                                         return(spectrumDetectPeaks.Profile(xtraInfo = list(traceId = self$spectra$idFromIndex(index)), ...)(dataFrame = tempdf))
