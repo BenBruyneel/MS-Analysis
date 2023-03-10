@@ -62,24 +62,32 @@ readData <- function(dataFrame = NA,
 #'  (length column names should be the same as the length of columns)
 #' @param rowNames specifies which row names to give to the data.frame. Should be same
 #'  length as the number of rows of the data being read
+#' @param additionalInfo additional info to be added to the result of the read
+#'  data function. Should be named list format, default is NA
 #'
 #' @return a function that reads the data from the specified excel file and
 #'  returns a list of two objects: info and data
 #' @export
 readExcel <- function(filename,
                       columns = 1:2, columnNames = c("x","y"),
-                      rowNames = NULL){
+                      rowNames = NULL, additionalInfo = NA){
         force(filename)
         force(columns)
         force(columnNames)
         force(rowNames)
+        force(additionalInfo)
         function(){
                 tempdf <- openxlsx::read.xlsx(filename)[,columns]
                 readData(dataFrame = tempdf,
-                         columns = columns, columnNames = columnNames,
+                         columns = 1:length(columns),
+                         columnNames = columnNames,
                          rowNames = NULL,
-                         info = list(source = "xlsx",
-                                     filename = filename))()
+                         info = ifelseProper(identical(additionalInfo, NA),
+                                             list(source = "xlsx",
+                                                  filename = filename),
+                                             append(list(source = "xlsx",
+                                                         filename = filename),
+                                                    additionalInfo)))()
         }
 }
 

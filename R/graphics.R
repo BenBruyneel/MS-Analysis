@@ -95,7 +95,7 @@ spectrumLabels <- function(dataFrame = NA, mz = NA, intensity = NA,
 #' @param mzLabelFormat defines the format of the m/z (x) axis labels.
 #'  See eg ?formatDigits. Default is ggplot2::waiver() which ensures 'standard'
 #'  formatting
-#' @param IntensityLabelFormat defines the format of the intensity (y) axis labels.
+#' @param intensityLabelFormat defines the format of the intensity (y) axis labels.
 #'  See eg ?formatDigits
 #' @param centroidPlot logical vector that defines whether the plot should be centroid
 #'  -like (geom_segment is used) or profile-like (geon_line is used)
@@ -149,7 +149,7 @@ plotSpectrum <- function(spectrum,
                          incrScaleIntensity = 0.05, scaleIntensityLocal = TRUE,
                          intensityPercentage = FALSE,
                          mzLabelFormat = ggplot2::waiver(),
-                         IntensityLabelFormat = ifelse(intensityPercentage,
+                         intensityLabelFormat = ifelse(intensityPercentage,
                                                        formatDigits(0),
                                                        formatScientificDigits(4)),
                          centroidPlot = FALSE, cutOff = 0.01,
@@ -227,9 +227,9 @@ plotSpectrum <- function(spectrum,
                 g <- g + scale_x_continuous(labels = mzLabelFormat)
         }
         if (!is.null(intensityLimits)){
-                g <- g + scale_y_continuous(expand = c(0,0), limits = intensityLimits, labels = IntensityLabelFormat)
+                g <- g + scale_y_continuous(expand = c(0,0), limits = intensityLimits, labels = intensityLabelFormat)
         } else {
-                g <- g + scale_y_continuous(expand = c(0,0), limits = c(0,maxY), labels = IntensityLabelFormat)
+                g <- g + scale_y_continuous(expand = c(0,0), limits = c(0,maxY), labels = intensityLabelFormat)
         }
         if (!is.null(annotateMz)){
                 for (i in 1:length(annotateMz)){
@@ -283,7 +283,7 @@ plotSpectrum <- function(spectrum,
 #' @param mzLabelFormat defines the format of the m/z (x) axis labels.
 #'  See eg ?formatDigits. Default is ggplot2::waiver() which ensures 'standard'
 #'  formatting
-#' @param IntensityLabelFormat defines the format of the intensity (y) axis labels.
+#' @param intensityLabelFormat defines the format of the intensity (y) axis labels.
 #'  See eg ?formatDigits
 #' @param centroidPlot logical vector that defines whether the plot should be centroid
 #'  -like (geom_segment is used) or profile-like (geon_line is used)
@@ -314,7 +314,7 @@ plotSpectrumOverlay <- function(spectrumList,
                                 incrScaleIntensity = 0.05, scaleIntensityLocal = TRUE,
                                 intensityPercentage = FALSE,
                                 mzLabelFormat = ggplot2::waiver(),
-                                IntensityLabelFormat = ifelse(intensityPercentage,
+                                intensityLabelFormat = ifelse(intensityPercentage,
                                                               formatDigits(0),
                                                               formatScientificDigits(4)),
                                 centroidPlot = FALSE, cutOff = 0.01,
@@ -446,7 +446,7 @@ plotSpectrumOverlay <- function(spectrumList,
 #' @param rtLabelFormat defines the format of the rt (x) axis labels.
 #'  See eg ?formatDigits. Default is ggplot2::waiver() which ensures 'standard'
 #'  formatting
-#' @param IntensityLabelFormat defines the format of the intensity (y) axis labels.
+#' @param intensityLabelFormat defines the format of the intensity (y) axis labels.
 #'  See eg ?formatDigits
 #' @param lineType determines linetype of the lines used for plotting the chromatogram
 #' @param lineAlpha determines alpha of the lines used for plotting the chromatogram
@@ -490,7 +490,7 @@ plotChromatogram <- function(chromatogram,
                              incrScaleIntensity = 0.05, scaleIntensityLocal = TRUE,
                              intensityPercentage = FALSE,
                              rtLabelFormat = formatDigits(1), # ggplot2::waiver(),
-                             IntensityLabelFormat = ifelse(intensityPercentage,
+                             intensityLabelFormat = ifelse(intensityPercentage,
                                                            formatDigits(0),
                                                            formatScientificDigits(4)),
                              lineType = "solid", lineAlpha = 1,
@@ -589,9 +589,9 @@ plotChromatogram <- function(chromatogram,
                 g <- g + scale_x_continuous(labels = rtLabelFormat)
         }
         if (!is.null(intensityLimits)){
-                g <- g + scale_y_continuous(expand = c(0,0), limits = intensityLimits, labels = IntensityLabelFormat)
+                g <- g + scale_y_continuous(expand = c(0,0), limits = intensityLimits, labels = intensityLabelFormat)
         } else {
-                g <- g + scale_y_continuous(expand = c(0,0), limits = c(0,maxY), labels = IntensityLabelFormat)
+                g <- g + scale_y_continuous(expand = c(0,0), limits = c(0,maxY), labels = intensityLabelFormat)
         }
         g <- g + labs(title = chromatogramTitle, subtitle = chromatogramSubtitle, caption = chromatogramCaption,
                       x = rtTitle, y = intensityTitle)
