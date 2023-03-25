@@ -565,12 +565,12 @@ MSInfo <- R6::R6Class(
                         tempdf <- self$spectra$item(index)
                         if (!identical(tempdf, NA)){
                                 if (identical(spectrunDetectPeaksMethod, NA)){
-                                        if (identical(self$spectra$info$Is_Centroided[index], NA)){
+                                        if (identical(self$spectra$info$centroided[index], NA)){
                                                 return(spectrumDetectPeaks(dataFrame = tempdf,
                                                                            xtraInfo = list(traceId = self$spectra$idFromIndex(index)),
                                                                            ...))
                                         } else {
-                                                if (self$spectra$info$Is_Centroided[index]){
+                                                if (self$spectra$info$centroided[index]){
                                                         return(spectrumDetectPeaks.Centroid(xtraInfo = list(traceId = self$spectra$idFromIndex(index)), ...)(dataFrame = tempdf))
                                                 } else {
                                                         return(spectrumDetectPeaks.Profile(xtraInfo = list(traceId = self$spectra$idFromIndex(index)), ...)(dataFrame = tempdf))
