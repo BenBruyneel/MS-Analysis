@@ -1,5 +1,6 @@
 
 library(R6)
+library(BBPersonalR)
 
 # ---- info ----
 
@@ -296,7 +297,7 @@ info <- R6::R6Class(
                         if (!identical(id, NA)){
                                 index <- self$indexFromId(id = id)
                         }
-                        if ((index < 1) | (index > self$length)){
+                        if (identical(index, NA) | (index < 1) | (index > self$length)){
                                 return(NA)
                         }
                         return(private$data_[[index]])
