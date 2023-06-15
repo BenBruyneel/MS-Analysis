@@ -52,25 +52,23 @@ fileInfoCSV <- function(filename, infoLines = 1,
 
 readCSV <- function(filename, columns = 1:2,
                     columnNames = c("x","y"),
-                    rowNames = NULL, sep = ",", skip = 0, header = TRUE,
+                    sep = ",", skip = 0, header = TRUE,
                     additionalInfo = NA){
         force(filename)
         force(columns)
         force(columnNames)
-        force(rowNames)
         force(sep)
         force(skip)
         force(header)
         force(additionalInfo)
         function(){
-                tempdf <- utils::read.table(filename, 
-                                            row.names = rowNames,
-                                            sep = sep, skip = skip,
-                                            header = header)[, columns]
+                tempdf <- utils::read.csv(filename, 
+                                          sep = sep, skip = skip,
+                                          header = header)[, columns]
                 readData(dataFrame = tempdf,
                          columns = 1:length(columns),
                          columnNames = columnNames,
-                         rowNames = rowNames,
+                         rowNames = NULL,
                          info = ifelseProper(identical(additionalInfo, NA),
                                              list(source = "csv",
                                                   filename = filename),
