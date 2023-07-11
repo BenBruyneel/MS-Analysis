@@ -1190,7 +1190,7 @@ infoList <- R6::R6Class(
                 #' 
                 #' @return "info" item
                 item = function(index = 1, clone = TRUE){
-                        if (identical(item, NA)){
+                        if (identical(index, NA)){
                                 return(NA)
                         }
                         if (is.character(index)){
