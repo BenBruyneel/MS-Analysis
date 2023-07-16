@@ -13,7 +13,7 @@ library(BBPersonalR)
 info <- R6::R6Class(
         "info",
         private = list(
-                filename_ = NA,
+                name_ = NA,
                 # name of file to from or to where information is read/written
                 info_ = data.frame(),
                 # descriptive data.frame with information on what's in the data_ list
@@ -54,12 +54,21 @@ info <- R6::R6Class(
                 #' @note the filename consists of the filename_ field + saveWhat argument
                 #' 
                 #' @return logical vector: TRUE if save was successful, FALSE if unsuccessful
-                save_ = function(saveWhat = "info", overwrite = TRUE){
+                save_ = function(path = "", filename = "", saveWhat = "info", overwrite = TRUE){
                         if (saveWhat %in% c("info", "data")){
-                                if (!is.na(private$filename_)){
-                                        fileName <- paste(c(private$filename_, "-",
-                                                            saveWhat, ".rds"),
-                                                          collapse = "")
+                                if (!is.na(private$name_)){
+                                        fileName <- paste(c(
+                                                ifelse(
+                                                        str_detect(path, pattern = "/$"),
+                                                        path,
+                                                        paste0(path, "/")),
+                                                filename,
+                                                ifelse(filename == "",
+                                                       "",
+                                                       "-"),
+                                                self$name, "-",
+                                                saveWhat, ".rds"),
+                                                collapse = "")
                                         if ((overwrite) | 
                                             (!overwrite & (!file.exists(fileName)))){
                                                 if (saveWhat == "info"){
@@ -77,27 +86,43 @@ info <- R6::R6Class(
                 },
                 #' @description internal function that loads either the info_ data.frame or the
                 #'  data_ list
-                #'  
+                #' 
+                #' @param path path where to place file, should end in '/'
+                #' @param filename prefix to the filename to be added
                 #' @param loadWhat defines what should be loaded. Can only be "info" or "data"
+                #' @param useName  character vector in case original file comes with other name
+                #'  Default is NA (not used)
                 #'  
                 #' @note the filename consists of the filename_ field + saveWhat argument
                 #' 
                 #' @return logical vector: TRUE if load_ was successful, FALSE if unsuccessful
-                load_ = function(loadWhat = "info"){
+                load_ = function(path = "", filename = "", loadWhat = "info", useName = NA){
                         if (loadWhat %in% c("info","data")){
-                                if (!is.na(private$filename_)){
-                                        fileName <- paste(c(private$filename_, "-",
-                                                            loadWhat, ".rds"),
-                                                          collapse = "")
-                                }
+                                fileName <- paste(c(
+                                        ifelse(
+                                                str_detect(path, pattern = "/$"),
+                                                path,
+                                                paste0(path, "/")),
+                                        filename,
+                                        ifelse(
+                                                filename == "",
+                                                "",
+                                                "-"),
+                                        ifelse(
+                                                identical(useName, NA),
+                                                self$name,
+                                                useName),
+                                        "-",
+                                        loadWhat, ".rds"),
+                                        collapse = "")
                                 if (file.exists(fileName)){
                                         if (loadWhat == "info"){
                                                 private$info_ <- readRDS(file = fileName)
                                         } else {
                                                 private$data_ <- readRDS(file = fileName)
-                                        }
-                                        return(TRUE)
                                 }
+                                return(TRUE)
+                        }
                         }
                         return(FALSE)
                 }
@@ -114,7 +139,7 @@ info <- R6::R6Class(
                 #'  
                 #' @return a new 'info' object
                 initialize = function(name = ""){
-                        self$filename <- name
+                        self$name <- name
                         invisible(self)
                 },
                 #' @description
@@ -133,9 +158,8 @@ info <- R6::R6Class(
                 #'  the data_ list. By default both are saved as '.rds' files via the saveRDS
                 #'  function
                 #'  
-                #' @param filename default is NA, if a filename is provided, it will replace
-                #'  the (internal) filename. Note that independent of a successful save, the
-                #'  filename of the object will change
+                #' @param path path where to place file, should end in '/'
+                #' @param filename prefix to the filename to be added
                 #' @param overwrite logical vector that defines what to do if there is already
                 #'  a file with the filename to be used
                 #'  
@@ -144,25 +168,26 @@ info <- R6::R6Class(
                 #'  successfully saved, but the data_ list is not (for whatever reason),
                 #'  then FALSE will be returned. Also note that if the info_ data.frame
                 #'  could not be saved, that there will be no attempt at saving the data_ list.
-                save = function(filename = NA, overwrite = TRUE){
-                        if (!is.na(filename)){
-                                private$filename_ <- filename
-                        }
-                        if (!is.na(private$filename_)){
-                                if (!self$empty){
-                                        if (private$save_(saveWhat = "info", overwrite = overwrite)){
-                                                return(private$save_(saveWhat = "data", overwrite = overwrite))
-                                        }
+                save = function(path = "", filename = "", overwrite = TRUE){
+                        result <- FALSE
+                        if (!self$empty){
+                                if (private$save_(path = path, filename = filename,
+                                                  saveWhat = "info", overwrite = overwrite)){
+                                        result <- private$save_(path = path, filename = filename,
+                                                                saveWhat = "data", overwrite = overwrite)
                                 }
                         }
-                        return(FALSE)
+                        names(result) <- self$name
+                        return(result)
                 },
                 #' @description loads the info_ data.frame and if that is successful loads
                 #'  the data_ list. By default both are loaded from '.rds' files via the readRDS
                 #'  function
                 #'  
-                #' @param filename default is NA, if a filename is provided, it will replace
-                #'  the (internal) filename.
+                #' @param path path where to place file, should end in '/'
+                #' @param filename prefix to the filename to be added
+                #' @param useName  character vector in case original file comes with other name,
+                #'  default is NA (not used)
                 #'  
                 #' @return logical vector TRUE if load was completely successful, FALSE if
                 #'  one or both were unsuccessful. Note that if the info_ data.frame is
@@ -170,30 +195,26 @@ info <- R6::R6Class(
                 #'  then FALSE will be returned. Also note that if the info_ data.frame
                 #'  could not be loaded, that there will be no attempt at loading the
                 #'  data_ list
-                #'  
-                #' @note both the original filename_ and info_ data.frame will be restored
-                #'  if loading the data_ list fails
-                load = function(filename = NA){
+                load = function(path = "", filename = "", useName = NA){
+                        result <- FALSE
                         saveOld <- list(
-                                filename_ = private$filename_,
+                                name_ = private$name_,
                                 info_ = private$info_
                         )
-                        if (!is.na(filename)){
-                                private$filename_ <- filename
-                        }
-                        if (!is.na(private$filename_)){
-                                if (private$load_(loadWhat = "info")){
-                                        private$index_ <- max(private$info_$id, na.rm = T) + 1
-                                        if (private$load_(loadWhat = "data")){
-                                                return(TRUE)
-                                        } else {
-                                                # restore old info
-                                                private$filename_ <- saveOld$filename_
-                                                private$info_ <- saveOld$info_
-                                        }
+                        if (private$load_(path = path, filename = filename, useName = useName,
+                                          loadWhat = "info")){
+                                private$index_ <- max(private$info_$id, na.rm = T) + 1
+                                if (private$load_(path = path, filename = filename, useName = useName,
+                                                  loadWhat = "data")){
+                                        result <- TRUE
+                                } else {
+                                        # restore old info
+                                        private$name_ <- saveOld$name_
+                                        private$info_ <- saveOld$info_
                                 }
                         }
-                        return(FALSE)
+                        names(result) <- self$name
+                        return(result)
                 },
                 #' @description finds the row number in the info_ data.frame which
                 #'  has a certain id
@@ -319,11 +340,11 @@ info <- R6::R6Class(
         ),
         active = list(
                 #' @field filename 'name' of the object, used as filename when saving/loading
-                filename = function(value){
+                name = function(value){
                         if (missing(value)){
-                                return(private$filename_)
+                                return(private$name_)
                         } else {
-                                private$filename_ = value
+                                private$name_ = value
                         }
                 },
                 #' @field info returns the info_ data.frame. Be careful directly changing
@@ -476,16 +497,26 @@ infoDB <- R6::R6Class(
                 #'  the 'filename'/'name' field with either '_info' and '_data'
                 #'  
                 #' @param whichTable defines which tablename to return. Can only be "info" or "data"
+                #' @param useName  character vector in case original file comes with other name,
+                #'  default is NA (not used)
                 #' 
                 #' @note convenience function, nothing more
-                tableName_ = function(whichTable){
+                tableName_ = function(whichTable, useName = NA){
                         return(
                                 switch(whichTable,
-                                       info = ifelse(self$filename != "",
-                                                     paste(c(self$filename,"_",self$infoTableName), collapse = ""),
+                                       info = ifelse(self$name != "",
+                                                     paste(c(
+                                                             ifelse(identical(useName, NA),
+                                                                    self$name,
+                                                                    useName),
+                                                             "_",self$infoTableName), collapse = ""),
                                                      self$infoTableName),
-                                       data = ifelse(self$filename != "",
-                                                     paste(c(self$filename,"_",self$dataTableName), collapse = ""),
+                                       data = ifelse(self$name != "",
+                                                     paste(c(
+                                                             ifelse(identical(useName, NA),
+                                                                    self$name,
+                                                                    useName),
+                                                             "_",self$dataTableName), collapse = ""),
                                                      self$dataTableName))
                         )
                 },
@@ -543,17 +574,19 @@ infoDB <- R6::R6Class(
                 #' @param db database access 'handle' to be closed. Database needs to be open!
                 #'  Opening & closing the database shpuld be handled outside the object's code
                 #' @param loadWhat defines what should be loaded. Can only be "info" or "data"
+                #' @param useName  character vector in case original file comes with other name,
+                #'  default is NA (not used)
                 #' 
                 #' @return logical vector: TRUE if load_ was successful, FALSE if unsuccessful
-                load_ = function(db, loadWhat = "info"){
+                load_ = function(db, loadWhat = "info", useName = NA){
                         if (loadWhat %in% c("info","data")){
-                                if (private$tableName_(loadWhat) %in% pool::dbListTables(db)){
+                                if (private$tableName_(loadWhat, useName = useName) %in% pool::dbListTables(db)){
                                         if (loadWhat == "info"){
                                                 private$info_ <- db_getTable(db = db,
-                                                                             tableName = private$tableName_(loadWhat))
+                                                                             tableName = private$tableName_(loadWhat, useName = useName))
                                         } else {
                                                 private$data_ <- convertDBtoDF(db_getTable(db = db,
-                                                                                           tableName = private$tableName_(loadWhat)),
+                                                                                           tableName = private$tableName_(loadWhat, useName = useName)),
                                                                                restoreClasses = TRUE,
                                                                                fromBlob = private$blobConvert_,
                                                                                type = private$compression_)
@@ -579,20 +612,24 @@ infoDB <- R6::R6Class(
                 #'  then FALSE will be returned. Also note that if the info_ data.frame
                 #'  could not be saved, that there will be no attempt at saving the data_ list.
                 save = function(db, overwrite = TRUE){
+                        result <- FALSE
                         if (!self$empty){
                                 if (private$save_(db, saveWhat = "info",
                                                   overwrite = overwrite)){
-                                        return(private$save_(db, saveWhat = "data",
-                                                             overwrite = overwrite))
+                                        result <- private$save_(db, saveWhat = "data",
+                                                                overwrite = overwrite)
                                 }
                         }
-                        return(FALSE)
+                        names(result) <- self$name
+                        return(result)
                 },
                 #' @description loads the info_ data.frame and if that is successful loads
                 #'  the data_ list
                 #'  
                 #' @param db database access 'handle' to be closed. Database needs to be open!
                 #'  Opening & closing the database shpuld be handled outside the object's code
+                #' @param useName  character vector in case original file comes with other name,
+                #'  default is NA (not used)
                 #'  
                 #' @return logical vector TRUE if load was completely successful, FALSE if
                 #'  one or both were unsuccessful. Note that if the info_ data.frame is
@@ -603,19 +640,21 @@ infoDB <- R6::R6Class(
                 #'  
                 #' @note the original info_ data.frame will be restored if loading
                 #'  the data_ list fails
-                load = function(db){
+                load = function(db, useName = NA){
                         saveOld <- list(
                                 info_ = private$info_
                         )
-                        if (private$load_(db = db, loadWhat = "info")){
-                                if (private$load_(db = db, loadWhat = "data")){
-                                        return(TRUE)
+                        result <- FALSE
+                        if (private$load_(db = db, loadWhat = "info", useName = useName)){
+                                if (private$load_(db = db, loadWhat = "data", useName = useName)){
+                                        result <- TRUE
                                 } else {
                                         # restore old info
                                         private$info_ <- saveOld$info_
                                 }
                         }
-                        return(FALSE)
+                        names(result) <- self$name
+                        return(result)
                 }
         ),
         active = list(
@@ -660,17 +699,6 @@ infoDB <- R6::R6Class(
                                                 warning("info & data table names must be different.")
                                         }
                                 }
-                        }
-                },
-                #' @field objectName in stead of filename, a bit redundant perhaps, but exists since
-                #'  the info and data are saved to a database and not a (simple) file anymore. filename
-                #'  can still be used. A future use could be to put some limits on the objectName since
-                #'  it is part of the tablenames in the database
-                objectName = function(value){
-                        if (missing(value)){
-                                return(private$filename_)
-                        } else {
-                                private$filename_ = value
                         }
                 },
                 #' @field blobConvert convert data to raw vector or not, see ?BBPersonalR::convertDFtoDB
@@ -1190,7 +1218,7 @@ infoList <- R6::R6Class(
                 #' 
                 #' @return "info" item
                 item = function(index = 1, clone = TRUE){
-                        if (identical(index, NA)){
+                        if (identical(item, NA)){
                                 return(NA)
                         }
                         if (is.character(index)){
