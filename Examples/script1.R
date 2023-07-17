@@ -48,3 +48,6 @@ tt2$data[[1]]
 tt2$load(db = dbr, useName = "test")
 tt2$data[[1]]
 tt2$name
+
+
+db_close(dbr)
