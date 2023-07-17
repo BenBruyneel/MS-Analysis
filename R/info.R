@@ -27,6 +27,8 @@ info <- R6::R6Class(
                 # defines the highest id number that is in the 
                 # can be set with the active/field index but must always be at least
                 # max id (info_ data.frame) +1
+                type_ = "info",
+                # defines which info type object this is
                 
                 #' @description internal function for checking in the length of the data_ list
                 #'  and the number of rows in the info_ data.frame match
@@ -458,6 +460,15 @@ info <- R6::R6Class(
                         } else {
                                 # nothing, read only
                         }
+                },
+                #' @field type character vector which returns the info type object
+                #'  (read only)
+                type = function(value){
+                        if (missing(value)){
+                                return(private$type_)
+                        } else {
+                                # nothing, read only
+                        }
                 }
         )
 )
@@ -491,6 +502,8 @@ infoDB <- R6::R6Class(
                 # convert data to raw vector or not, see ?BBPersonalR::convertDFtoDB
                 compression_ = "gzip",
                 # compression type, see ?memCompress
+                type_ = "infoDB",
+                # defines which info type object this is
                 
                 #' @description
                 #'  gives the names of the database tables for info_ and data_. Nothing more than pasting togther
@@ -744,6 +757,9 @@ infoDBVariable <- R6::R6Class(
         "infoDBVariable",
         inherit = infoDB,
         private = list(
+                type_ = "infoDBVariable",
+                # defines which info type object this is
+                
                 #' @description
                 #'  gives the names of the database tables for info_ and data_. The names for the data_ tables
                 #'  are numbered (first element is 1, second 2, and so on)
@@ -890,6 +906,8 @@ infoDatabase <- R6::R6Class(
                 # defines the name of the table name for the data_ list
                 # all data.frame's in the data_list are combined together into one big table with each
                 # separate data.frame in it's own row. See ?BBPersonalR::convertDFtoDB for more info
+                type_ = "infoDatabase",
+                # defines which info type object this is
                 
                 #' @description
                 #'  gives the names of the database tables for info_ and data_. The names for the data_ tables
@@ -950,7 +968,7 @@ infoDatabase <- R6::R6Class(
                                                         db_deleteTable(db, private$tableName_("info", useName = useName))
                                                 }
                                                 if (dataPresent){
-                                                        db_deleteTable(db, private$tableName_("data"), useName = useName)
+                                                        db_deleteTable(db, private$tableName_("data", useName = useName))
                                                 }
                                                 
                                         }
@@ -1070,7 +1088,7 @@ infoDatabase <- R6::R6Class(
                                 info_ = private$info_,
                                 data_ = private$data_
                         )
-                        if (private$load_(db = db)){
+                        if (private$load_(db = db, useName = useName)){
                                 result <- TRUE
                         } else {
                                 # restore old info
@@ -1139,6 +1157,15 @@ infoDatabase <- R6::R6Class(
         )
 )
 
+createInfo <- function(type = "infoDatabase", name = ""){
+        switch(type,
+               "info" = info$new(name = name),
+               "infoDB" = infoDB$new(name = name),
+               "infoDBVariable" = infoDBVariable$new(name = name),
+               "infoDatabase" = infoDatabase$new(name = name),
+               NA
+        )
+}
 
 # ---- infoList ----
 
@@ -1151,8 +1178,18 @@ infoDatabase <- R6::R6Class(
 infoList <- R6::R6Class(
         "infolist",
         private = list(
-                info_ = list()
+                info_ = list(),
+                name_ = "",
                 # list of "info" objects
+                stopOrNot = function(message = NA, addName = TRUE){
+                        if (self$stopOnFail){
+                                if (!identical(message, NA)){
+                                        stop(paste0(message, addName))
+                                } else {
+                                        stop(paste0("Error in infoList object ", private$name))
+                                }
+                        }
+                }
         ),
         public = list(
                 stopOnFail = TRUE,
@@ -1163,9 +1200,20 @@ infoList <- R6::R6Class(
                 
                 #' @description
                 #' Create a new peptide object
+                #' 
+                #' 
                 #'
                 #' @return a new 'peptide' object
-                initialize = function(){
+                initialize = function(name = "", names = NA, types = NA){
+                        if (identical(names, NA) | identical(types, NA)){
+                                if (length(types) < length(names)){
+                                        types <- rep(types, length(names))
+                                }
+                                if (length(types) != length(names)){
+                                        private$stopOrNot(message = "Error names and/or types arguments in initialization of",
+                                                          addName = TRUE)
+                                }
+                        }
                         invisible(self)
                 },
                 #' @description
@@ -1275,6 +1323,21 @@ infoList <- R6::R6Class(
                 }
         ),
         active = list(
+                #' @field contents
+                contents = function(value){
+                        if (missing(value)){
+                                if ((self$length > 0)){
+                                        df <- data.frame(name = self$names,
+                                                         length = map_int(private$info_, ~.x$length),
+                                                         type = map_chr(private$info_, ~.x$type))
+                                        return(df)
+                                } else {
+                                        print(NA)
+                                }
+                        } else {
+                                # nothing, read only
+                        }
+                },
                 #' @field length number of "info" items in the list object
                 length = function(value){
                         if (missing(value)){
