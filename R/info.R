@@ -767,15 +767,11 @@ infoDBVariable <- R6::R6Class(
                         # )
                         return(
                                 switch(whichTable,
-                                       info = super$tableName_(whichTable = whichTable, number = number, useName = useName),
-                                       data = paste(c(super$tableName_(whichTable = whichTable, number = number, useName = useName),
+                                       info = super$tableName_(whichTable = whichTable, useName = useName),
+                                       data = paste(c(super$tableName_(whichTable = whichTable, useName = useName),
                                                       "_",toString(number)), collapse = ""))
                         )
                 },
-                
-                
-                
-                
                 #' @description 
                 #'  saves either the info_ data.frame or the data_ list (list of data.frame's) to the database
                 #'  

@@ -51,3 +51,37 @@ tt2$name
 
 
 db_close(dbr)
+
+
+dbr <- BBPersonalR::db_open("data/test2.sqlite")
+tt <- createInfo(name =  "test", type = "infoDBVariable")
+tt$add(data =  readData(dataFrame = mtcars))
+tt$add(data =  readData(dataFrame = mtcars))
+tt$name
+tt$empty
+tt$save(db = dbr, overwrite = T)
+tt
+tt$data[[1]]
+
+tt2 <- createInfo(name =  "test2", type = "infoDBVariable")
+iris2 <- iris
+colnames(iris2) <- str_replace(colnames(iris2), pattern = "\\.", replacement = "_")
+tt2$add(data = readData(dataFrame = iris2))
+tt2
+tt2$data[[1]]
+tt2$save(db = dbr, overwrite = T)
+tt2
+tt2$data[[1]]
+
+
+tt2$load(db = dbr)
+pool::dbListTables(dbr)
+tt2$data[[1]]
+tt2
+
+tt2$load(db = dbr, useName = "test")
+tt2$data[[1]]
+tt2$data[[2]]
+tt2$name
+tt2
+
