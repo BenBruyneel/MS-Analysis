@@ -755,16 +755,6 @@ infoDBVariable <- R6::R6Class(
                 #' 
                 #' @note convenience function, nothing more
                 tableName_ = function(whichTable, number = 1, useName = NA){
-                        # return(
-                        #         switch(whichTable,
-                        #                info = 
-                        #                        ifelse(self$name != "",
-                        #                              paste(c(self$filename,"_",self$infoTableName), collapse = ""),
-                        #                              self$infoTableName),
-                        #                data = ifelse(self$filename != "",
-                        #                              paste(c(self$filename,"_",self$dataTableName,"_",toString(number)), collapse = ""),
-                        #                              paste(c(self$dataTableName,"_",toString(number)), collapse = "")))
-                        # )
                         return(
                                 switch(whichTable,
                                        info = super$tableName_(whichTable = whichTable, useName = useName),
@@ -906,17 +896,23 @@ infoDatabase <- R6::R6Class(
                 #'  are numbered (first element is 1, second 2, and so on)
                 #'  
                 #' @param whichTable defines which table name to return. Can only be "info" or "data"
-                #' 
+                #' @param useName  character vector in case original file comes with other name,
+                #'  default is NA (not used)
+                #'   
                 #' @note convenience function, nothing more
-                tableName_ = function(whichTable){
+                tableName_ = function(whichTable, useName = NA){
                         return(
                                 switch(whichTable,
-                                       info = ifelse(self$filename != "",
-                                                     paste(c(self$filename,"_",self$infoTableName), collapse = ""),
-                                                     self$infoTableName),
-                                       data = ifelse(self$filename != "",
-                                                     paste(c(self$filename,"_",self$dataTableName), collapse = ""),
-                                                     self$dataTableName))
+                                       info = ifelse(identical(useName, NA),
+                                                     ifelse(self$name != "",
+                                                            paste(c(self$name,"_",self$infoTableName), collapse = ""),
+                                                            self$infoTableName),
+                                                     paste(c(useName,"_",self$infoTableName), collapse = "")),
+                                       data = ifelse(identical(useName, NA),
+                                                     ifelse(self$name != "",
+                                                            paste(c(self$name,"_",self$dataTableName), collapse = ""),
+                                                            self$dataTableName),
+                                                     paste(c(useName,"_",self$dataTableName), collapse = "")))
                         )
                 },
                 #' @description 
@@ -927,32 +923,34 @@ infoDatabase <- R6::R6Class(
                 #' @param saveWhat defines what should be saved. Can only be "info" or "data"
                 #' @param overwrite logical vector that defines what to do if there is already
                 #'  a table with the filename to be used
+                #' @param useName  character vector in case original file comes with other name,
+                #'  default is NA (not used)
                 #' 
                 #' @return logical vector: TRUE if save was successful, FALSE if unsuccessful 
-                save_ = function(db, overwrite = TRUE){
+                save_ = function(db, overwrite = TRUE, useName = NA){
                         if (self$length == 0){
                                 return(FALSE)
                         }
                         tablesPresent <- pool::dbListTables(db)
                         if (length(tablesPresent)>0){
-                                infoPresent <- private$tableName_("info") %in% tablesPresent
-                                dataPresent <- private$tableName_("data") %in% tablesPresent
+                                infoPresent <- private$tableName_("info", useName = useName) %in% tablesPresent
+                                dataPresent <- private$tableName_("data", useName = useName) %in% tablesPresent
                                 if (infoPresent | dataPresent){
                                         if (!overwrite & self$showWarnings){
                                                 # abort save action
                                                 tablePresent <- ifelse(infoPresent,
                                                                        ifelse(dataPresent,
-                                                                              paste(c(private$tableName_("info"), " & ",private$tableName_("data")), collapse =""),
-                                                                              private$tableName_("info")),
-                                                                       private$tableName_("data"))
+                                                                              paste(c(private$tableName_("info", useName = useName), " & ",private$tableName_("data", useName = useName)), collapse =""),
+                                                                              private$tableName_("info", useName = useName)),
+                                                                       private$tableName_("data", useName = useName))
                                                 warning(paste(c("Table(s) ", tablePresent," already exists & overwrite is FALSE"), collapse = ""))
                                                 return(FALSE)
                                         } else {
                                                 if (infoPresent){
-                                                        db_deleteTable(db, private$tableName_("info"))
+                                                        db_deleteTable(db, private$tableName_("info", useName = useName))
                                                 }
                                                 if (dataPresent){
-                                                        db_deleteTable(db, private$tableName_("data"))
+                                                        db_deleteTable(db, private$tableName_("data"), useName = useName)
                                                 }
                                                 
                                         }
@@ -960,7 +958,7 @@ infoDatabase <- R6::R6Class(
                         }
                         # save info
                         db_createTable(db = db,
-                                       tableName = private$tableName_("info"),
+                                       tableName = private$tableName_("info", useName = useName),
                                        dataframe = private$info_,
                                        addPrimary = TRUE,
                                        primaryKeyName = "id",
@@ -973,7 +971,7 @@ infoDatabase <- R6::R6Class(
                                 private$data_[[emptyData]] <- data.frame(noData = as.character(NA))
                         }
                         db_createTable(db = db,
-                                       tableName = private$tableName_("data"),
+                                       tableName = private$tableName_("data", useName = useName),
                                        dataframe = dplyr::bind_cols(private$data_[[1]], data.frame(id = private$info_$id[1])),
                                        # dataframe = convertDFtoDB(list(private$data_[[counter]]),
                                        #                           saveClasses = TRUE,
@@ -985,7 +983,7 @@ infoDatabase <- R6::R6Class(
                         if (self$length > 1){
                                 for (counter in 2:self$length){
                                         db_writeTable(db = db,
-                                                      tableName = private$tableName_("data"),
+                                                      tableName = private$tableName_("data", useName = useName),
                                                       theTable = dplyr::bind_cols(private$data_[[counter]], data.frame(id = private$info_$id[counter])),
                                                       primaryKeyName = NA)
                                 }
@@ -998,21 +996,23 @@ infoDatabase <- R6::R6Class(
                 #'  
                 #' @param db database access 'handle' to be closed. Database needs to be open!
                 #'  Opening & closing the database shpuld be handled outside the object's code
+                #' @param useName  character vector in case original file comes with other name,
+                #'  default is NA (not used)
                 #'  
                 #' @return logical vector: TRUE if load_ was successful, FALSE if unsuccessful
-                load_ = function(db){
-                        if (private$tableName_("info") %in% pool::dbListTables(db)){
+                load_ = function(db, useName = NA){
+                        if (private$tableName_("info", useName = useName) %in% pool::dbListTables(db)){
                                 private$info_ <- db_getTable(db = db,
-                                                             tableName = private$tableName_("info"))
+                                                             tableName = private$tableName_("info", useName = useName))
                         } else {
                                 return(FALSE)
                         }
-                        if (private$tableName_("data") %in% pool::dbListTables(db)){
-                                columnsInData <- pool::dbListFields(db, private$tableName_("data"))
+                        if (private$tableName_("data", useName = useName) %in% pool::dbListTables(db)){
+                                columnsInData <- pool::dbListFields(db, private$tableName_("data", useName = useName))
                                 columnsInData <- columnsInData[columnsInData != "id"]
                                 for (counter in 1:nrow(self$info)){
                                         private$data_[[counter]] <- db_getColumn(db = db,
-                                                                                 tableName = private$tableName_("data"),
+                                                                                 tableName = private$tableName_("data", useName = useName),
                                                                                  column = columnsInData,
                                                                                  where = paste(c("id = ",private$info_$id[counter]), collapse = "")
                                         )
@@ -1031,23 +1031,29 @@ infoDatabase <- R6::R6Class(
                 #'  Opening & closing the database shpuld be handled outside the object's code
                 #' @param overwrite logical vector that defines what to do if there is already
                 #'  a table with the tablename to be used
+                #' @param useName  character vector in case original file comes with other name,
+                #'  default is NA (not used)
                 #'  
                 #' @return logical vector TRUE if save was completely successful, FALSE if
                 #'  one or both were unsuccessful. Note that if the info_ data.frame is
                 #'  successfully saved, but the data_ list is not (for whatever reason),
                 #'  then FALSE will be returned. Also note that if the info_ data.frame
                 #'  could not be saved, that there will be no attempt at saving the data_ list.
-                save = function(db, overwrite = TRUE){
+                save = function(db, overwrite = TRUE, useName = NA){
+                        result <- FALSE
                         if (!self$empty){
-                                return(private$save_(db, overwrite = overwrite))
+                                result <- private$save_(db, overwrite = overwrite, useName = useName)
                         }
-                        return(FALSE)
+                        names(result) <- self$name
+                        return(result)
                 },
                 #' @description loads the info_ data.frame and if that is successful loads
                 #'  the data_ list
                 #'  
                 #' @param db database access 'handle' to be closed. Database needs to be open!
                 #'  Opening & closing the database shpuld be handled outside the object's code
+                #' @param useName  character vector in case original file comes with other name,
+                #'  default is NA (not used)
                 #'  
                 #' @return logical vector TRUE if load was completely successful, FALSE if
                 #'  one or both were unsuccessful. Note that if the info_ data.frame is
@@ -1058,19 +1064,21 @@ infoDatabase <- R6::R6Class(
                 #'  
                 #' @note the original info_ data.frame will be restored if loading
                 #'  the data_ list fails
-                load = function(db){
+                load = function(db, useName = NA){
+                        result <- FALSE
                         saveOld <- list(
                                 info_ = private$info_,
                                 data_ = private$data_
                         )
                         if (private$load_(db = db)){
-                                return(TRUE)
+                                result <- TRUE
                         } else {
                                 # restore old info
                                 private$info_ <- saveOld$info_
                                 private$data_ <- saveOld$data_
                         }
-                        return(FALSE)
+                        names(result) <- self$name
+                        return(result)
                 }
         ),
         active = list(
