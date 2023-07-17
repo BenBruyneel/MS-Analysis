@@ -510,14 +510,18 @@ infoDB <- R6::R6Class(
                                                                     self$name,
                                                                     useName),
                                                              "_",self$infoTableName), collapse = ""),
-                                                     self$infoTableName),
+                                                     ifelse(identical(useName, NA),
+                                                            self$infoTableName,
+                                                            paste(c(useName, "_", self$infoTableName), collapse = ""))),
                                        data = ifelse(self$name != "",
                                                      paste(c(
                                                              ifelse(identical(useName, NA),
                                                                     self$name,
                                                                     useName),
                                                              "_",self$dataTableName), collapse = ""),
-                                                     self$dataTableName))
+                                                     ifelse(identical(useName, NA),
+                                                            self$dataTableName,
+                                                            paste(c(useName, "_", self$dataTableName), collapse = ""))))
                         )
                 },
                 #' @description 
@@ -526,15 +530,17 @@ infoDB <- R6::R6Class(
                 #' @param db database access 'handle' to be closed. Database needs to be open!
                 #'  Opening & closing the database shpuld be handled outside the object's code
                 #' @param saveWhat defines what should be saved. Can only be "info" or "data"
+                #' @param useName  character vector in case original file comes with other name,
+                #'  default is NA (not used)
                 #' @param overwrite logical vector that defines what to do if there is already
                 #'  a table with the filename to be used
                 #' 
                 #' @return logical vector: TRUE if save was successful, FALSE if unsuccessful 
-                save_ = function(db, saveWhat = "info", overwrite = TRUE){
+                save_ = function(db, saveWhat = "info", useName = NA, overwrite = TRUE){
                         if (saveWhat %in% c("info", "data")){
                                 tablesPresent <- pool::dbListTables(db)
                                 if (length(tablesPresent)>0){
-                                        if (private$tableName_(saveWhat) %in% tablesPresent){
+                                        if (private$tableName_(saveWhat, useName = useName) %in% tablesPresent){
                                                 if (!overwrite & self$showWarnings){
                                                         # abort save action
                                                         warning("Table already exists & overwrite is FALSE")
@@ -555,7 +561,7 @@ infoDB <- R6::R6Class(
                                         }
                                 }
                                 db_createTable(db = db,
-                                               tableName = private$tableName_(saveWhat),
+                                               tableName = private$tableName_(saveWhat, useName = useName),
                                                dataframe = ifelseProper(
                                                        saveWhat == "info",
                                                        private$info_,
@@ -744,30 +750,45 @@ infoDBVariable <- R6::R6Class(
                 #'  
                 #' @param whichTable defines which table name to return. Can only be "info" or "data"
                 #' @param number defines what number to add to the table name (if whichTable is "data")
+                #' @param useName  character vector in case original file comes with other name,
+                #'  default is NA (not used)
                 #' 
                 #' @note convenience function, nothing more
-                tableName_ = function(whichTable, number = 1){
+                tableName_ = function(whichTable, number = 1, useName = NA){
+                        # return(
+                        #         switch(whichTable,
+                        #                info = 
+                        #                        ifelse(self$name != "",
+                        #                              paste(c(self$filename,"_",self$infoTableName), collapse = ""),
+                        #                              self$infoTableName),
+                        #                data = ifelse(self$filename != "",
+                        #                              paste(c(self$filename,"_",self$dataTableName,"_",toString(number)), collapse = ""),
+                        #                              paste(c(self$dataTableName,"_",toString(number)), collapse = "")))
+                        # )
                         return(
                                 switch(whichTable,
-                                       info = ifelse(self$filename != "",
-                                                     paste(c(self$filename,"_",self$infoTableName), collapse = ""),
-                                                     self$infoTableName),
-                                       data = ifelse(self$filename != "",
-                                                     paste(c(self$filename,"_",self$dataTableName,"_",toString(number)), collapse = ""),
-                                                     paste(c(self$dataTableName,"_",toString(number)), collapse = "")))
+                                       info = super$tableName_(whichTable = whichTable, number = number, useName = useName),
+                                       data = paste(c(super$tableName_(whichTable = whichTable, number = number, useName = useName),
+                                                      "_",toString(number)), collapse = ""))
                         )
                 },
+                
+                
+                
+                
                 #' @description 
                 #'  saves either the info_ data.frame or the data_ list (list of data.frame's) to the database
                 #'  
                 #' @param db database access 'handle' to be closed. Database needs to be open!
                 #'  Opening & closing the database shpuld be handled outside the object's code
                 #' @param saveWhat defines what should be saved. Can only be "info" or "data"
+                #' @param useName  character vector in case original file comes with other name,
+                #'  default is NA (not used)
                 #' @param overwrite logical vector that defines what to do if there is already
                 #'  a table with the filename to be used
                 #' 
                 #' @return logical vector: TRUE if save was successful, FALSE if unsuccessful 
-                save_ = function(db, saveWhat = "info", overwrite = TRUE){
+                save_ = function(db, saveWhat = "info", useName = NA, overwrite = TRUE){
                         if (saveWhat %in% c("info", "data")){
                                 tablesPresent <- pool::dbListTables(db)
                                 if (saveWhat == "data"){
@@ -781,41 +802,40 @@ infoDBVariable <- R6::R6Class(
                                         }
                                         for (counter in 1:self$length){
                                                 if (length(tablesPresent)>0){
-                                                        if (private$tableName_(saveWhat, number = counter) %in% tablesPresent){
+                                                        if (private$tableName_(saveWhat, useName = useName,
+                                                                               number = counter) %in% tablesPresent){
                                                                 if (!overwrite & self$showWarnings){
                                                                         # abort save action
                                                                         warning("Table already exists & overwrite is FALSE")
                                                                         return(FALSE)
                                                                 } else {
-                                                                        db_deleteTable(db, private$tableName_(saveWhat, number = counter))
+                                                                        db_deleteTable(db, private$tableName_(saveWhat, useName = useName,
+                                                                                                              number = counter))
                                                                 }
                                                         }
                                                 }
                                                 db_createTable(db = db,
-                                                               tableName = private$tableName_(saveWhat, number = counter),
+                                                               tableName = private$tableName_(saveWhat, useName = useName,
+                                                                                              number = counter),
                                                                dataframe = private$data_[[counter]],
-                                                               # dataframe = convertDFtoDB(list(private$data_[[counter]]),
-                                                               #                           saveClasses = TRUE,
-                                                               #                           toBlob = private$blobConvert_,
-                                                               #                           type = private$compression_),
                                                                addPrimary = FALSE,
                                                                dbType = private$dbType_)
                                         }
                                 } else {
                                         if (length(tablesPresent)>0){
-                                                if (private$tableName_(saveWhat) %in% tablesPresent){
+                                                if (private$tableName_(saveWhat, useName = useName) %in% tablesPresent){
                                                         if (!overwrite & self$showWarnings){
                                                                 # abort save action
                                                                 warning("Table already exists & overwrite is FALSE")
                                                                 return(FALSE)
                                                         } else {
-                                                                db_deleteTable(db, private$tableName_(saveWhat))
+                                                                db_deleteTable(db, private$tableName_(saveWhat, useName = useName))
                                                         }
                                                 }
                                         }
                                         # save info
                                         db_createTable(db = db,
-                                                       tableName = private$tableName_(saveWhat),
+                                                       tableName = private$tableName_(saveWhat, useName = useName),
                                                        dataframe = private$info_,
                                                        addPrimary = FALSE,
                                                        dbType = private$dbType_)
@@ -830,24 +850,22 @@ infoDBVariable <- R6::R6Class(
                 #' @param db database access 'handle' to be closed. Database needs to be open!
                 #'  Opening & closing the database shpuld be handled outside the object's code
                 #' @param loadWhat defines what should be loaded. Can only be "info" or "data"
+                #' @param useName  character vector in case original file comes with other name,
+                #'  default is NA (not used)
                 #' 
                 #' @return logical vector: TRUE if load_ was successful, FALSE if unsuccessful
-                load_ = function(db, loadWhat = "info"){
+                load_ = function(db, loadWhat = "info", useName = useName){
                         if (loadWhat %in% c("info","data")){
-                                if (private$tableName_(loadWhat) %in% pool::dbListTables(db)){
+                                if (private$tableName_(loadWhat, useName = useName) %in% pool::dbListTables(db)){
                                         if (loadWhat == "info"){
                                                 private$info_ <- db_getTable(db = db,
-                                                                             tableName = private$tableName_(loadWhat))
+                                                                             tableName = private$tableName_(loadWhat, useName = useName))
                                         } else {
                                                 # assumes info has been loaded!
                                                 for (counter in 1:nrow(self$info)){
                                                         private$data_[[counter]] <- db_getTable(db = db,
-                                                                                                tableName = private$tableName_(loadWhat, number = counter))
-                                                        # private$data_[[counter]] <- convertDBtoDF(db_getTable(db = db,
-                                                        #                                                       tableName = private$tableName_(loadWhat, number = counter)),
-                                                        #                                           restoreClasses = TRUE,
-                                                        #                                           fromBlob = private$blobConvert_,
-                                                        #                                           type = private$compression_)[[1]]
+                                                                                                tableName = private$tableName_(loadWhat, useName = useName,
+                                                                                                                               number = counter))
                                                 }
                                         }
                                         return(TRUE)
