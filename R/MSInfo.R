@@ -24,9 +24,7 @@ MSInfo <- R6::R6Class(
         ),
         public = list(
                 showWarnings = TRUE,
-                #  logical vector which defines whether warnings are to be shown
-                #   info object itself only uses this in private evaluate_ function
-                
+
                 #' @description create a new info object
                 #' 
                 #' @param type character vector defining the type of info element

@@ -1157,6 +1157,8 @@ infoDatabase <- R6::R6Class(
         )
 )
 
+# ---- create Info Objects ----
+
 createInfo <- function(type = "infoDatabase", name = ""){
         switch(type,
                "info" = info$new(name = name),
@@ -1188,6 +1190,15 @@ infoList <- R6::R6Class(
                                 } else {
                                         stop(paste0("Error in infoList object ", private$name))
                                 }
+                        } else {
+                                if (self$showWarnings){
+                                        if (!identical(message, NA)){
+                                                warning(paste0(message, addName))
+                                        } else {
+                                                warning(paste0("Error in infoList object ", private$name))
+                                        }
+                                        
+                                }
                         }
                 }
         ),
@@ -1205,13 +1216,18 @@ infoList <- R6::R6Class(
                 #'
                 #' @return a new 'peptide' object
                 initialize = function(name = "", names = NA, types = NA){
-                        if (identical(names, NA) | identical(types, NA)){
+                        private$name_ <- name
+                        if (!identical(names, NA) & !identical(types, NA)){
                                 if (length(types) < length(names)){
                                         types <- rep(types, length(names))
                                 }
                                 if (length(types) != length(names)){
                                         private$stopOrNot(message = "Error names and/or types arguments in initialization of",
                                                           addName = TRUE)
+                                }
+                                for (counter in 1:length(names)){
+                                        self$add(infoObject = createInfo(type = types[counter],
+                                                                         name = names[counter]), name = names[counter])
                                 }
                         }
                         invisible(self)
@@ -1222,7 +1238,7 @@ infoList <- R6::R6Class(
                 print = function(){
                         if ((self$length > 0)){
                                 for (counter in 1:self$length){
-                                        cat(paste(c(" ",self$names[counter],"\t: ", self$item(counter)$length,"\n"), collapse = ""))
+                                        cat(paste(c(" ",self$names[counter],"\t: ", self$item(counter, clone = FALSE)$length,"\n"), collapse = ""))
                                 }
                         } else {
                                 print(NA)
@@ -1239,7 +1255,6 @@ infoList <- R6::R6Class(
                 add = function(infoObject, name = ""){
                         if (is.Class(infoObject, "info") & (name != "")){
                                 if (!(name %in% self$names)){
-                                        infoObject$filename <- name
                                         private$info_[[length(private$info_)+1]] <- infoObject
                                         names(private$info_)[length(private$info_)] <- name
                                 } else {
@@ -1284,11 +1299,11 @@ infoList <- R6::R6Class(
                 #'  
                 #' @param index number or name of the info item to be retrieved
                 #' @param clone logical vector specifying whether the returned item
-                #'  should be a clone or not. Default = TRUE
+                #'  should be a clone or not. Default = FALSE
                 #' 
                 #' @return "info" item
-                item = function(index = 1, clone = TRUE){
-                        if (identical(item, NA)){
+                item = function(index = 1, clone = FALSE){
+                        if (identical(index, NA)){
                                 return(NA)
                         }
                         if (is.character(index)){
@@ -1311,10 +1326,10 @@ infoList <- R6::R6Class(
                 #'  
                 #' @param index numbers or names of the info item to be retrieved
                 #' @param clone logical vector specifying whether the returned items
-                #'  should be clones or not. Default = TRUE
+                #'  should be clones or not. Default = FALSE
                 #' 
                 #' @return list of "info" items
-                item.list = function(index = 1:self$length, clone = TRUE){
+                item.list = function(index = 1:self$length, clone = FALSE){
                         if (self$length < 1){
                                 return(NA)
                         }
@@ -1327,12 +1342,11 @@ infoList <- R6::R6Class(
                 contents = function(value){
                         if (missing(value)){
                                 if ((self$length > 0)){
-                                        df <- data.frame(name = self$names,
-                                                         length = map_int(private$info_, ~.x$length),
-                                                         type = map_chr(private$info_, ~.x$type))
-                                        return(df)
+                                        return(data.frame(name = self$names,
+                                                          length = unname(map_int(private$info_, ~.x$length)),
+                                                          type = unname(map_chr(private$info_, ~.x$type))))
                                 } else {
-                                        print(NA)
+                                        return(NA)
                                 }
                         } else {
                                 # nothing, read only
@@ -1354,6 +1368,19 @@ infoList <- R6::R6Class(
                                 private$info_ <- value
                         }
                 },
+                #' @field name provides direct access to the name of the infoList object
+                name = function(value){
+                        if (missing(value)){
+                                if (self$length > 0){
+                                        return(names(private$name_))
+                                } else {
+                                        return(NA)
+                                }
+                        } else {
+                                private$name_ <- value
+                        }
+                },
+                
                 #' @field names provides direct access to names of the "info" items
                 #'  on the list
                 names = function(value){

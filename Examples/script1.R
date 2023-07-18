@@ -118,3 +118,18 @@ tt2$data[[1]]
 tt2$data[[2]]
 tt2$name
 tt2
+
+
+tt <- infoList$new(name = "test", names = c("mtcars", "iris","penguins"),
+                   types = "info")
+tt
+class(tt$item(1))
+tt$item(1)$name
+tt$item(1)$add(data = readData(dataFrame = mtcars))
+tt$item("mtcars")$data[[1]]
+
+tt <- createInfo(name = "test")
+tt
+tt$length
+tt$add(data = readData(dataFrame = mtcars))
+tt
