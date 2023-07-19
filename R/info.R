@@ -1169,6 +1169,26 @@ createInfo <- function(type = "infoDatabase", name = ""){
         )
 }
 
+saveInfo <- function(infoObject, db, path = "", filename = "", overwrite = TRUE){
+        switch(infoObject$type,
+               "info" = infoObject$save(filename = filename, path = path, overwrite = overwrite),
+               "infoDB" = infoObject$save(db = db, overwrite = overwrite),
+               "infoDBVariable" = infoObject$save(db = db, overwrite = overwrite),
+               "infoDatabase" = infoObject$save(db = db, overwrite = overwrite),
+               FALSE
+        )
+} 
+
+loadInfo <- function(infoObject, db, path = "", filename = ""){
+        switch(infoObject$type,
+               "info" = infoObject$load(filename = filename, path = path),
+               "infoDB" = infoObject$load(db = db),
+               "infoDBVariable" = infoObject$load(db = db),
+               "infoDatabase" = infoObject$load(db = db),
+               FALSE
+        )
+} 
+
 # ---- infoList ----
 
 #' R6 Class to deal with a group of "info" objects in an organized manner
@@ -1210,7 +1230,7 @@ infoList <- R6::R6Class(
                 # logical vector which defines whether warnings are to be shown
                 
                 #' @description
-                #' Create a new peptide object
+                #' Create a new infolist object
                 #' 
                 #' 
                 #'
@@ -1236,13 +1256,54 @@ infoList <- R6::R6Class(
                 #' For printing purposes: prints the names of the "info" items present
                 #'  and the number of data_ items in each
                 print = function(){
+                        nameAddChars <- purrr::map_int(self$names, ~nchar(.x))
+                        nameAddChars <- max(nameAddChars) - nameAddChars
                         if ((self$length > 0)){
                                 for (counter in 1:self$length){
-                                        cat(paste(c(" ",self$names[counter],"\t: ", self$item(counter, clone = FALSE)$length,"\n"), collapse = ""))
+                                        cat(paste(c(" ",paste(c(self$names[counter], rep(" ", times = nameAddChars[counter])), collapse = "") ,"\t: ", self$item(counter, clone = FALSE)$length,"\n"), collapse = ""))
                                 }
                         } else {
                                 print(NA)
                         }
+                },
+                #' @description 
+                #'  Loads the info objects from a database
+                #' 
+                #' @param db database access 'handle' from which data is to be loaded
+                #' @param path path where to place file, should end in '/'
+                #' @param filename prefix to the filename to be added
+                #'  
+                #' @note this does not work if "rds" was chosen as type of info object
+                #'  (see initialize)
+                load = function(db, path = "", filename = ""){
+                        tempL <- as.logical()
+                        for (counter in 1:self$length){
+                                tempL <- append(tempL, loadInfo(private$info_[[counter]], db = db,
+                                                                path = path,
+                                                                filename = filename))
+                        }
+                        names(tempL) <- self$names
+                        return(tempL)
+                },
+                #' @description 
+                #'  saves the info objects to a database
+                #'  
+                #' @param db database access 'handle' to which data is to be saved
+                #' @param path path where to place file, should end in '/'
+                #' @param filename prefix to the filename to be added
+                #' @param overwrite logical vector that defines what to do if there is already
+                #'  a file with the filename or a table with the tablename to be used 
+                #'  
+                save = function(db, path = "", filename = "", overwrite = TRUE){
+                        tempL <- as.logical()
+                        for (counter in 1:self$length){
+                                tempL <- append(tempL, saveInfo(private$info_[[counter]], db = db,
+                                                                path = path,
+                                                                filename = filename,
+                                                                overwrite = overwrite))
+                        }
+                        names(tempL) <- self$names
+                        return(tempL)
                 },
                 #' @description 
                 #'  adds an info object to the info_ list

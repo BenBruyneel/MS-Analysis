@@ -17,130 +17,25 @@ MSInfo <- R6::R6Class(
         "MSInfo",
         inherit = infoList,
         private = list(
-                type_ = "infoDatabase"
-                # internal variable defining type of info element to be used
-                # options are: "dbVar" for infoDBVariable, "db" for infoDB and 
-                # "rds" for info (non-database)
         ),
         public = list(
                 showWarnings = TRUE,
 
                 #' @description create a new info object
                 #' 
-                #' @param type character vector defining the type of info element
-                #'  to be used. By default this will be "dbVar" for infoDBVariable.
-                #'  Other options are  "db" for infoDB and  "rds" for info
-                #'  (non-database). If somthing else is passed on then an 'empty'
-                #'  object will be created
+                #' @param types character vector defining the type of info element
+                #'  to be used. By default this will be infoDatabase.
+                #'  Other options are "info", "infoDB" and "infoDatabase" (anything
+                #'  that the 'createInfo' function takes)
                 #'  
                 #' @return a new 'info' object
-                initialize = function(type = "infoDatabase"){
-                        private$type_ <- type
-                        if (type == "infoDB"){
-                                private$info_[[1]] <- infoDB$new(name = "chromatograms")
-                                private$info_[[2]] <- infoDB$new(name = "spectra")
-                                private$info_[[3]] <- infoDB$new(name = "files")
-                                # private$info_[[4]] <- infoDB$new(name = "peaks")
-                        } else {
-                                if (type == "rds"){
-                                        private$info_[[1]] <- info$new(name = "chromatograms")
-                                        private$info_[[2]] <- info$new(name = "spectra")
-                                        private$info_[[3]] <- info$new(name = "files")
-                                        # private$info_[[4]] <- info$new(name = "peaks")
-                                } else {
-                                        if (type == "infoDBVariable"){
-                                                private$info_[[1]] <- infoDBVariable$new(name = "chromatograms")
-                                                private$info_[[2]] <- infoDBVariable$new(name = "spectra")
-                                                private$info_[[3]] <- infoDBVariable$new(name = "files")
-                                                # private$info_[[4]] <- infoDBVariable$new(name = "peaks")
-                                        } else {
-                                                if (type == "infoDatabase"){
-                                                        private$info_[[1]] <- infoDatabase$new(name = "chromatograms")
-                                                        private$info_[[2]] <- infoDatabase$new(name = "spectra")
-                                                        private$info_[[3]] <- infoDatabase$new(name = "files")
-                                                        # private$info_[[4]] <- infoDatabase$new(name = "peaks")
-                                                } else {
-                                                        private$info_[[1]] <- NA
-                                                        private$info_[[2]] <- NA
-                                                        private$info_[[3]] <- NA
-                                                        # private$info_[[4]] <- NA
-                                                }
-                                        }
-                                }
-                        }
-                        names(private$info_) <- c("chromatograms",
-                                                  "spectra",
-                                                  "files")#,
-                        #"peaks")
+                initialize = function(name = "", types = "infoDatabase"){
+                        super$initialize(name = name,
+                                         names = c("chromatograms",
+                                                   "spectra",
+                                                   "files"),
+                                         types = types)
                         invisible(self)
-                },
-                #' @description
-                #' For printing purposes: prints the names of the "info" items present
-                #'  and the number of data_ items in each
-                print = function(){
-                        cat(paste(c(" File Info\t: ", self$files$length,"\n"), collapse = ""))
-                        cat(paste(c(" Chromatograms\t: ", self$chromatograms$length,"\n"), collapse = ""))
-                        cat(paste(c(" Spectra\t: ", self$spectra$length,"\n"), collapse = ""))
-                        # cat(paste(c(" Peaks  \t: ", self$peaks$length,"\n"), collapse = ""))
-                        if (self$length > 3){
-                                for (counter in 4:self$length){
-                                        cat(paste(c(" ",self$names[counter],"\t: ", self$item(counter)$length,"\n"), collapse = ""))
-                                }
-                        }
-                },
-                #' @description 
-                #'  Loads the info objects from a database
-                #' 
-                #' @param db database access 'handle' from which data is to be loaded
-                #'  
-                #' @note this does not work if "rds" was chosen as type of info object
-                #'  (see initialize)
-                load = function(db){
-                        if (private$type_ %in%  c("infoDB","infoDBVariable","infoDatabase")){
-                                tempL <- as.logical()
-                                for (counter in 1:self$length){
-                                        tempL <- append(tempL, private$info_[[counter]]$load(db = db))
-                                }
-                                for (counter in 1:self$length){
-                                        if (tempL[counter]){
-                                                private$info_[[counter]]$index <- max(private$info_[[counter]]$info$id, na.rm = TRUE) + 1
-                                        }
-                                }
-                                if (!self$spectra$empty){
-                                        self$spectra$info$centroided <- as.logical(self$spectra$info$centroided)
-                                }
-                                return(tempL)
-                        } else {
-                                if (self$showWarnings){
-                                        warning(" Cannot automatically load this infoList type.")
-                                }
-                                return(NA)
-                        }
-                        invisble()
-                },
-                #' @description 
-                #'  saves the info objects to a database
-                #'  
-                #' @param db database access 'handle' to which data is to be saved
-                #' @param overwrite defines whether existing tables in the database are allowed
-                #'  to be overwritten (default is TRUE)
-                #'  
-                #' @note this does not work if "rds" was chosen as type of info object
-                #'  (see initialize)
-                save = function(db, overwrite = TRUE){
-                        if (private$type_ %in%  c("infoDB","infoDBVariable","infoDatabase")){
-                                tempL <- as.logical()
-                                for (counter in 1:self$length){
-                                        tempL <- append(tempL, private$info_[[counter]]$save(db = db, overwrite = overwrite))
-                                }
-                                return(tempL)
-                        } else {
-                                if (self$showWarnings){
-                                        warning(" Cannot automatically save this infoList type.")
-                                }
-                                return(NA)
-                        }
-                        invisble()
                 },
                 #' @description 
                 #'  Attempts to find the file (on which a chromatogram (indicated by index/id)) in
@@ -355,111 +250,6 @@ MSInfo <- R6::R6Class(
                                 return(getScans(scanIndex = tempScanIndex, ...))
                         }
                 },
-                
-                # ---- currently not inmplemented ----
-                # peaks.sort = function(decreasing = TRUE, intensity = TRUE){
-                #         if (self$peaks$length > 0){
-                #                 for (counter in 1:self$peaks$length){
-                #                         if (intensity) {
-                #                                 if (decreasing) {
-                #                                         self$peaks$data[[counter]] <- self$peaks$data[[counter]] %>%
-                #                                                 dplyr::arrange(desc(peak_intensity))
-                #                                 } else {
-                #                                         self$peaks$data[[counter]] <- self$peaks$data[[counter]] %>%
-                #                                                 dplyr::arrange(peak_intensity)
-                #                                 }
-                #                         } else {
-                #                                 if (decreasing) {
-                #                                         self$peaks$data[[counter]] <- self$peaks$data[[counter]] %>%
-                #                                                 dplyr::arrange(desc(peak_rt))
-                #                                 } else {
-                #                                         self$peaks$data[[counter]] <- self$peaks$data[[counter]] %>%
-                #                                                 dplyr::arrange(peak_rt)
-                #                                 }
-                #                                 
-                #                         }
-                #                 }
-                #         }
-                #         invisible(self)
-                # },
-                # # also sorts according to intensity (decreasing = TRUE) if limitNR != NA
-                # peaks.filter = function(limitNr = NA, rtLimits = NA,
-                #                         intensityLimit = NA, intensityPercentage = TRUE){
-                #         if (!identical(rtLimits, NA)){
-                #                 for (counter in 1:self$peaks$length){
-                #                         self$peaks$data[[counter]] <- self$peaks$data[[counter]] %>%
-                #                                 dplyr::filter((peak_rt >= rtLimits[1]) & (peak_rt <= rtLimits[2]))
-                #                 }
-                #         }
-                #         if (!identical(intensityLimit, NA)){
-                #                 if (!intensityPercentage){
-                #                         for (counter in 1:self$peaks$length){
-                #                                 self$peaks$data[[counter]] <- self$peaks$data[[counter]] %>%
-                #                                         dplyr::filter(peak_intensity >= intensityLimit)
-                #                         }
-                #                 } else {
-                #                         for (counter in 1:self$peaks$length){
-                #                                 maxIntensity <- max(self$peaks$data[[counter]]$peak_intensity, na.rm = TRUE)
-                #                                 self$peaks$data[[counter]] <- self$peaks$data[[counter]] %>%
-                #                                         dplyr::mutate(perc = peak_intensity/maxIntensity) %>%
-                #                                         dplyr::filter(perc >= intensityLimit) %>%
-                #                                         dplyr::select(-perc)
-                #                         }
-                #                         
-                #                 }
-                #         }
-                #         if (!identical(limitNr, NA)){
-                #                 if (limitNr < 1){
-                #                         stop("limitNr paramerer must be >= 1")
-                #                 }
-                #                 for (counter in 1:self$peaks$length){
-                #                         self$peaks$data[[counter]] <- self$peaks$data[[counter]] %>%
-                #                                 dplyr::arrange(desc(peak_intensity)) %>%
-                #                                 dplyr::slice(1:limitNr)
-                #                 }
-                #         }
-                # },
-                # peaks.fixed.edges = function(index = 1, id = NA, ...){
-                #         if (!identical(id, NA)){
-                #                 index <- self$peaks$indexFromId(id = id)
-                #         }
-                #         tempdf <- self$peaks$item(index)
-                #         if (!identical(tempdf, NA)){
-                #                 if (self$peaks$info$source[index] == "chromatogram"){
-                #                         tempdf <- chromatogramPeaksFixedEdges(peaks = tempdf, ...)
-                #                         self$peaks$data[[index]] <- tempdf
-                #                 } else {
-                #                         if (self$showWarnings){
-                #                                 warning("Function 'peaks.fixed.edges' only works on peaks coming from chromatograms")
-                #                         }
-                #                 }
-                #         }
-                # },
-                # peaks.areas = function(index = 1, id = NA, areaMethod = NA, ...){
-                #         if (!identical(id, NA)){
-                #                 index <- self$peaks$indexFromId(id = id)
-                #         }
-                #         tempPeaks <- self$peaks$item(index)
-                #         if (!identical(tempPeaks, NA)){
-                #                 tempTrace <- self$peaks$info[index, ]
-                #                 if (tempTrace$source[1] == "chromatogram"){
-                #                         tempTrace <- self$chromatograms$item(id = self$peaks$info$id[index])
-                #                         if (identical(areaMethod, NA)){
-                #                                 areaMethod = chromatogramFindAreas
-                #                         }
-                #                         tempPeaks <- areaMethod(peaks = tempPeaks,
-                #                                                         trace = tempTrace,
-                #                                                         ...)
-                #                         self$peaks$data[[index]] <- tempPeaks
-                #                 } else {
-                #                         if (self$showWarnings){
-                #                                 warning("Function 'peaks.areas' only works on peaks coming from chromatograms")
-                #                         }
-                #                 }
-                #         }
-                # },
-                # ---- currently not inmplemented ----
-                
                 #' @description 
                 #'  Attempts to find the file (from which a spectrum (indicated by index/id) originates)
                 #'  in the files object (via the filename). If it is found, the files index is returned
@@ -668,38 +458,6 @@ MSInfo <- R6::R6Class(
                                 return(private$info_[["files"]])                                
                         } else {
                                 private$info_[["files"]] <- value
-                        }
-                },
-                
-                # ---- currently not inmplemented ----
-                # peaks = function(value){
-                #         if (missing(value)){
-                #                 return(private$info_[["peaks"]])                                
-                #         } else {
-                #                 private$info_[["peaks"]] <- value
-                #         }
-                # },
-                # ---- currently not inmplemented ----
-                
-                #' @field blobConvert get/sets the blobConvert of the different
-                #'  info objects (files, chromatograms, spectra, etc). This only
-                #'  works if the info object classs (private$type_) is 'db', because
-                #'  only then the info objects are of the 'infodb'  type
-                blobConvert = function(value){
-                        if (missing(value)){
-                                if (private$type_ == "db"){
-                                        return(private$info_[[1]]$blobConvert)
-                                } else {
-                                        return(NA)
-                                }
-                        } else {
-                                if (is.logical(value)){
-                                        if ((private$type_ == "db")){
-                                                for (counter in 1:self$length){
-                                                        private$info_[[counter]]$blobConvert <- value
-                                                }
-                                        }
-                                }
                         }
                 }
         )
