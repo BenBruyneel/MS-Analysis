@@ -38,6 +38,22 @@ MSInfo <- R6::R6Class(
                         invisible(self)
                 },
                 #' @description 
+                #'  Loads the info objects from a database
+                #' 
+                #' @param db database access 'handle' from which data is to be loaded
+                #' @param path path where to place file, should end in '/'
+                #' @param filename prefix to the filename to be added
+                #'  
+                #' @note this does not work if "rds" was chosen as type of info object
+                #'  (see initialize)
+                load = function(db, path = "", filename = ""){
+                        tempL <- super$load(db = db, path = path, filename = filename)
+                        if (self$spectra$length > 0){
+                                self$spectra$info$centroided <- as.logical(self$spectra$info$centroided)
+                        }
+                        return(tempL)
+                },
+                #' @description 
                 #'  Attempts to find the file (on which a chromatogram (indicated by index/id)) in
                 #'  the files object (via the filename). If it is found, the files index is returned
                 #'

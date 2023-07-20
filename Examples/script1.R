@@ -188,3 +188,4 @@ msR2
 msR2$spectra
 msR2
 
+msR2$spectra$info
