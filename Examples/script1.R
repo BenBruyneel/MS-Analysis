@@ -2,9 +2,6 @@
 srcFiles <- list.files("R/", full.names = T)
 purrr::walk(srcFiles, ~source(.x))
 
-fn <- list.files(path = "/home/ben/Documents/Thermo/TKO-Example", "*.raw", full.names = T)
-fn
-
 
 tt <- info$new(name = "test")
 tt$add(data = readData(dataFrame = mtcars))

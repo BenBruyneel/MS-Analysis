@@ -481,8 +481,12 @@ info <- R6::R6Class(
 #'  Essentially gives basic functions to regulate saving/loading to/from a database
 #'  
 #' @note all elements in the data_ list must be data.frames with the exact same columns
-#'
+#' 
 #' @note slowest of all types (especially when loading), but generates smallest database files
+#' 
+#' @note this type may be removed at any time as it seems kind of over complicated and data
+#'  in the database cannot be readily accessed by other programs. An alternative for it is
+#'  'infoDBVariable' 
 #'
 #' @export 
 infoDB <- R6::R6Class(
@@ -751,6 +755,8 @@ infoDB <- R6::R6Class(
 #'  The data in the data_ list is saved in separate tables
 #'  
 #' @note The elements in the data_ list must be data.frames, but do not have to have the exact same columns
+#' 
+#' @note The name of this class will probably change in the near future. 'infoDBVariable' is only a placeholder
 #'
 #' @export 
 infoDBVariable <- R6::R6Class(
@@ -1159,6 +1165,15 @@ infoDatabase <- R6::R6Class(
 
 # ---- create Info Objects ----
 
+
+#' Createa R6 object of type info, infoDB, etc
+#'
+#' @param type character vector setting the info object type. Can only be
+#'  'info', 'infoDB', 'infoDBVariable' or 'infoDatabase'
+#' @param name character vector: name of new object
+#'
+#' @return an R6 object of one of the different info types
+#' @export
 createInfo <- function(type = "infoDatabase", name = ""){
         switch(type,
                "info" = info$new(name = name),
@@ -1169,6 +1184,17 @@ createInfo <- function(type = "infoDatabase", name = ""){
         )
 }
 
+#' Saves the specified object. Essentially a wrapper to have a unified 'interface' in infoLists
+#'  objects with variable types of info objects
+#'
+#' @param infoObject the R6 info object to be saved. Be careful with references/clone
+#' @param db database handle to which the info object is to be saved (if it is a database info type)
+#' @param path path to which the info object is to be saved (if it is not a database info type)
+#' @param filename filename to which the info object is to be saved (if it is not a database info type) 
+#' @param overwrite sets the overwrite logical vector. Default is TRUE (will overwrite existing data)
+#'
+#' @return logical vector: TRUE if successful, FALSE if not
+#' @export
 saveInfo <- function(infoObject, db, path = "", filename = "", overwrite = TRUE){
         switch(infoObject$type,
                "info" = infoObject$save(filename = filename, path = path, overwrite = overwrite),
@@ -1179,6 +1205,16 @@ saveInfo <- function(infoObject, db, path = "", filename = "", overwrite = TRUE)
         )
 } 
 
+#' Loads data into the specified object. Essentially a wrapper to have a unified 'interface'
+#'  objects in infoLists with variable types of info objects
+#'
+#' @param infoObject the R6 info object to which the data is to be loaded. Be careful with references/clone
+#' @param db database handle to which the info object is to be saved (if it is a database info type)
+#' @param path path to which the info object is to be saved (if it is not a database info type)
+#' @param filename filename to which the info object is to be saved (if it is not a database info type) 
+#'
+#' @return logical vector: TRUE if successful, FALSE if not
+#' @export
 loadInfo <- function(infoObject, db, path = "", filename = ""){
         switch(infoObject$type,
                "info" = infoObject$load(filename = filename, path = path),
@@ -1201,8 +1237,17 @@ infoList <- R6::R6Class(
         "infolist",
         private = list(
                 info_ = list(),
-                name_ = "",
                 # list of "info" objects
+                name_ = "",
+                # name of the objectList
+                
+                #' private function to generate warnings or cause stops when
+                #'  something is not correct. (Wrapper to generalize warning messages & stops)
+                #'
+                #' @param message warning or stop message  (character vector)
+                #' @param addName whether to add the infoList name to the message (logical vector)
+                #'
+                #' @return
                 stopOrNot = function(message = NA, addName = TRUE){
                         if (self$stopOnFail){
                                 if (!identical(message, NA)){
@@ -1293,7 +1338,6 @@ infoList <- R6::R6Class(
                 #' @param filename prefix to the filename to be added
                 #' @param overwrite logical vector that defines what to do if there is already
                 #'  a file with the filename or a table with the tablename to be used 
-                #'  
                 save = function(db, path = "", filename = "", overwrite = TRUE){
                         tempL <- as.logical()
                         for (counter in 1:self$length){
@@ -1399,7 +1443,8 @@ infoList <- R6::R6Class(
                 }
         ),
         active = list(
-                #' @field contents
+                #' @field contents alternate to print. Generates a data.frame with the names,
+                #'  lengths and types of the info object elements in the infoList object
                 contents = function(value){
                         if (missing(value)){
                                 if ((self$length > 0)){
