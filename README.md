@@ -19,3 +19,5 @@ Things I'm working on to develop this further:
 Eventually I will probably turn (part of) this into a package.
 
 A manual for this routines is in the works!
+
+As always: work in progress!
