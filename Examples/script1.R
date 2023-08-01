@@ -110,12 +110,13 @@ tt2$load(db = dbr)
 pool::dbListTables(dbr)
 tt2$data[[1]]
 tt2
+tt2$index
 
 tt2$load(db = dbr, useName = "test")
 tt2$data[[1]]
 tt2$data[[2]]
 tt2$name
-tt2
+tt2$index
 
 
 tt <- infoList$new(name = "test", names = c("mtcars", "iris","penguins"),

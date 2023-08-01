@@ -120,6 +120,7 @@ info <- R6::R6Class(
                                 if (file.exists(fileName)){
                                         if (loadWhat == "info"){
                                                 private$info_ <- readRDS(file = fileName)
+                                                private$index_ <- max(private$info_$id) + 1
                                         } else {
                                                 private$data_ <- readRDS(file = fileName)
                                 }
@@ -208,6 +209,7 @@ info <- R6::R6Class(
                                 private$index_ <- max(private$info_$id, na.rm = T) + 1
                                 if (private$load_(path = path, filename = filename, useName = useName,
                                                   loadWhat = "data")){
+                                        private$index_ <- max(self$info$id) + 1
                                         result <- TRUE
                                 } else {
                                         # restore old info
@@ -670,6 +672,7 @@ infoDB <- R6::R6Class(
                         result <- FALSE
                         if (private$load_(db = db, loadWhat = "info", useName = useName)){
                                 if (private$load_(db = db, loadWhat = "data", useName = useName)){
+                                        private$index_ <- max(private$info_$id) + 1
                                         result <- TRUE
                                 } else {
                                         # restore old info
@@ -1095,6 +1098,7 @@ infoDatabase <- R6::R6Class(
                                 data_ = private$data_
                         )
                         if (private$load_(db = db, useName = useName)){
+                                private$index_ <- max(private$info_$id) + 1
                                 result <- TRUE
                         } else {
                                 # restore old info
