@@ -263,7 +263,9 @@ MSInfo <- R6::R6Class(
       }
       tempScanIndex <- self$files$item(index)
       if (!identical(tempScanIndex, NA)){
-        return(getScans(scanIndex = tempScanIndex, ...))
+              return(getScans(scanIndex = tempScanIndex, ...))
+      } else {
+              return(NA)
       }
     },
     #' @description 

@@ -891,11 +891,14 @@ getScans <- function(scanIndex = NA, rt = 1,
         if (!identical(charge, NA)){
                 scanIndex <- scanIndex[scanIndex$charge %in% charge,]
         }
-        scanIndex <- scanIndex[scanIndex$rtinseconds/60 >= rt - rtLimits[1],]
-        scanIndex <- scanIndex[scanIndex$rtinseconds/60 <= rt + rtLimits[2],]
+        if (length(rtLimits) == 1){
+                rtLimits <- rep(rtLimits/2,2)
+        }
+        scanIndex <- scanIndex[scanIndex$StartTime >= ((rt - rtLimits[1])),]
+        scanIndex <- scanIndex[scanIndex$StartTime <= ((rt + rtLimits[2])),]
         if (sortClose){
                 scanIndex <- scanIndex %>% 
-                        dplyr::mutate(distance = abs(rt - (rtinseconds/60))) %>%
+                        dplyr::mutate(distance = abs(StartTime - (rt))) %>%
                         dplyr::arrange(distance)
                 if (!is.na(limitNr)){
                         scanIndex <- scanIndex %>%
