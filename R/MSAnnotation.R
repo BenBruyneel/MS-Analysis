@@ -302,12 +302,11 @@ annotation <- R6Class("annotation",
                               #'  if not, then the label is dropped from the object
                               #'
                               #' @param dataFrame data.frame with at least the x-column (nameX) and y-column (nameY)
-                              #' @param toleranceLow x-axis left tolerance (m/z)
-                              #' @param toleranceHigh x-axis right tolerance (m/z)
+                              #' @param toleranceX two element numeric vecto: x-axis left tolerance (m/z) and right tolerance (mz)
                               #' @param relativeCutOff is the yCutOff reletive (fraction of maximum y-value (intensity))
                               #' @param yCutOff y-axis cut off y-axis value (intensity) should be above
                               check = function(dataFrame = NULL,
-                                               toleranceLow = 0.1, toleranceHigh = toleranceLow,
+                                               toleranceX = c(0.1, 0.1),
                                                relativeCutOff = TRUE, yCutOff = ifelse(relativeCutOff, 0.001, 10)){
                                       if (!is.null(dataFrame)){
                                               dataFrame <- as.data.frame(dataFrame)
@@ -320,8 +319,8 @@ annotation <- R6Class("annotation",
                                               remove <- rep(FALSE, length(self$x))
                                               stayY <- rep(0,length(self$x))
                                               for (cntr in 1:length(self$x)){
-                                                      tempY <- dataFrame[dataFrame[, self$nameX] >= (self$x[cntr] - toleranceLow) &
-                                                                                 dataFrame[, self$nameX] <= (self$x[cntr] + toleranceHigh), self$nameY]
+                                                      tempY <- dataFrame[
+                                                              dataFrame[, self$nameX] >= (self$x[cntr] - toleranceX[1]) & dataFrame[, self$nameX] <= (self$x[cntr] + toleranceX[2]), self$nameY]
                                                       if (length(tempY)<1){
                                                               remove[cntr] <- TRUE
                                                       } else {
@@ -334,16 +333,77 @@ annotation <- R6Class("annotation",
                                                       }
                                               }
                                               # remove non-detected labels
-                                              self$x <- self$x[-which(remove)]
-                                              self$labelMz <- self$labelMz[-which(remove)]
-                                              self$labelWhere <- self$labelWhere[-which(remove)]
+                                              self$x <- self$x[!remove]
+                                              # self$labelMz <- self$labelMz[-which(remove)] ?
+                                              self$labelX <- self$labelX[!remove]
+                                              self$labelWhere <- self$labelWhere[!remove]
                                               if (length(self$labelColor)>1){
-                                                      self$labelColor <- self$labelColor[-which(remove)]
+                                                      self$labelColor <- self$labelColor[!remove]
                                               }
                                               # add intensity levels for detected ones
-                                              self$axisConnectLevel <- stayY[-which(remove)]
+                                              self$axisConnectLevel <- stayY[!remove]
                                       }
                                       invisible()
+                              },
+                              #' @description
+                              #'  Adds the annotation graphics to a ggplot object
+                              #'
+                              #' @note plotSpectrum has internal code to use this function but can also be used 'manually'
+                              #'
+                              #' @param graphObject ggplot object to add the annotation to, easiest if it's the output
+                              #'  of plotSpectrum
+                              #' @param maxY maximum intensity value for the ggplot object
+                              #' @param intensityPercentage Whether the intensity axis is displayed in percentages
+                              #'  (default FALSE)
+                              #' @return ggplot object
+                              draw = function(graphObject, maxY = NA, intensityPercentage = FALSE){
+                                      if (!identical(maxY, NA)){
+                                              if (self$axisConnect){
+                                                      if (self$axisConnectType == 1){
+                                                              graphObject <- graphObject +
+                                                                      annotate("linerange",x = self$x, ymin = rep(0,length(self$x)),
+                                                                               ymax = self$labelWhere * maxY, linewidth = self$axisConnectWidth,
+                                                                               color = self$axisConnectColor, alpha = self$axisConnectAlpha)
+                                                      } else {   # atm anything other than 1
+                                                              ymaxs <- self$labelWhere * maxY
+                                                              if (intensityPercentage){
+                                                                      ymins <- ((self$axisConnectLevel/maxY) + (self$axisConnectWhere)) * maxY
+                                                              } else {
+                                                                      ymins <- self$axisConnectLevel + (self$axisConnectWhere * ymaxs)
+                                                              }
+                                                              graphObject <- graphObject +
+                                                                      annotate("linerange",x = self$x, ymin = ymins,
+                                                                               ymax = ymaxs, linewidth = self$axisConnectWidth,
+                                                                               color = self$axisConnectColor, alpha = self$axisConnectAlpha)
+                                                      }
+                                              }
+                                              if (self$labelConnect){
+                                                      if (length(self$mz) > 1){
+                                                              graphObject <- graphObject +
+                                                                      annotate("path",x = self$x, y = maxY*self$labelWhere,
+                                                                               color = self$labelConnectColor,
+                                                                               alpha = self$labelConnectAlpha)
+                                                      }                                        
+                                              }
+                                              if (self$axisConnectType == 3){
+                                                      if (intensityPercentage){
+                                                              ymaxs <- ((self$axisConnectLevel/maxY) + (self$axisConnectWhere)) * maxY 
+                                                      } else {
+                                                              ymaxs <- self$axisConnectLevel + (self$axisConnectWhere * maxY)
+                                                      }
+                                                      graphObject <- graphObject +
+                                                              annotate("text", x = self$x, y = ymaxs,
+                                                                       label = self$labelX, size=self$labelSize,
+                                                                       angle=self$labelAngle, color = self$labelColor)
+                                              } else {
+                                                      browser()
+                                                      graphObject <- graphObject +
+                                                              annotate("text", x = self$x, y = maxY*self$labelWhere,
+                                                                       label = self$labelX, size=self$labelSize,
+                                                                       angle=self$labelAngle, color = self$labelColor)
+                                              }
+                                      }
+                                      return(graphObject)
                               }
                       ),
                       active = list(
@@ -359,8 +419,10 @@ annotation <- R6Class("annotation",
                               #'  (read only)
                               table = function(value){
                                       if (missing(value)){
-                                              return(data.frame(mz = self$x,
-                                                                label = self$labelX))
+                                              result <- data.frame(mz = self$x,
+                                                                   label = self$labelX)
+                                              colnames(result)[1] <- self$nameX
+                                              return(result)
                                       } else {
                                               # do nothing
                                       }
@@ -491,7 +553,7 @@ spectrumAnnotation <- R6Class("spectrumAnnotation",
                                                        toleranceLow = 0.1, toleranceHigh = toleranceLow,
                                                        relativeCutOff = TRUE, intensityCutOff = ifelse(relativeCutOff, 0.001, 10)){
                                               super$check(dataFrame = spectrum,
-                                                          toleranceLow = toleranceLow, toleranceHigh = toleranceHigh,
+                                                          toleranceX = c(toleranceLow, toleranceHigh),
                                                           relativeCutOff = relativeCutOff, yCutOff = intensityCutOff)
                                               invisible()
                                       },
@@ -523,7 +585,7 @@ spectrumAnnotation <- R6Class("spectrumAnnotation",
                                                                       }
                                                                       graphObject <- graphObject +
                                                                               annotate("linerange",x = self$mz, ymin = ymins,
-                                                                                       ymax = ymaxs, linewidth = axisConnectWidth,
+                                                                                       ymax = ymaxs, linewidth = self$axisConnectWidth,
                                                                                        color = self$axisConnectColor, alpha = self$axisConnectAlpha)
                                                               }
                                                       }
