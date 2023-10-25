@@ -396,7 +396,6 @@ annotation <- R6Class("annotation",
                                                                        label = self$labelX, size=self$labelSize,
                                                                        angle=self$labelAngle, color = self$labelColor)
                                               } else {
-                                                      browser()
                                                       graphObject <- graphObject +
                                                               annotate("text", x = self$x, y = maxY*self$labelWhere,
                                                                        label = self$labelX, size=self$labelSize,
