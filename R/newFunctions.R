@@ -142,3 +142,31 @@ readMultiCSV <- function(filename, nchars = NA, useBytes = FALSE,
                 return(result)
         }
 }
+readAgilentExport.Spectrum <- function(filename){
+  force(filename)
+  function(centroided = FALSE){
+    tempComment = readLines(filename, n = 1) %>%
+      str_replace_all(pattern = "\\\"", replacement = "") %>%
+      str_replace_all(pattern = "#", replacement = "")
+    tempdf <- read.table(filename, skip = 1, sep = ",", header = FALSE) %>% dplyr::select(2,3)
+    colnames(tempdf) <- c("mz", "intensity")
+    readData(dataFrame = tempdf,
+             info = list(source = "Agilent",
+                         centroided = centroided,
+                         comment = tempComment))        
+  }
+}
+
+readAgilentExport.Chromatogram <- function(filename){
+  force(filename)
+  function(){
+    tempComment = readLines(filename, n = 1) %>%
+      str_replace_all(pattern = "\\\"", replacement = "") %>%
+      str_replace_all(pattern = "#", replacement = "")
+    tempdf <- read.table(filename, skip = 1, sep = ",", header = FALSE) %>% dplyr::select(2,3)
+    colnames(tempdf) <- c("rt", "intensity")
+    readData(dataFrame = tempdf,
+             info = list(source = "Agilent",
+                         comment = tempComment))        
+  }
+}
