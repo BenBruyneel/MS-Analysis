@@ -142,10 +142,11 @@ readMultiCSV <- function(filename, nchars = NA, useBytes = FALSE,
                 return(result)
         }
 }
+
 readAgilentExport.Spectrum <- function(filename){
   force(filename)
   function(centroided = FALSE){
-    tempComment = readLines(filename, n = 1) %>%
+    tempComment <- readLines(filename, n = 1) %>%
       str_replace_all(pattern = "\\\"", replacement = "") %>%
       str_replace_all(pattern = "#", replacement = "")
     tempdf <- read.table(filename, skip = 1, sep = ",", header = FALSE) %>% dplyr::select(2,3)
@@ -157,10 +158,10 @@ readAgilentExport.Spectrum <- function(filename){
   }
 }
 
-readAgilentExport.Chromatogram <- function(filename){
+readAgilentExport.Chromatogram.file <- function(filename){
   force(filename)
   function(){
-    tempComment = readLines(filename, n = 1) %>%
+    tempComment <- readLines(filename, n = 1) %>%
       str_replace_all(pattern = "\\\"", replacement = "") %>%
       str_replace_all(pattern = "#", replacement = "")
     tempdf <- read.table(filename, skip = 1, sep = ",", header = FALSE) %>% dplyr::select(2,3)
@@ -169,4 +170,36 @@ readAgilentExport.Chromatogram <- function(filename){
              info = list(source = "Agilent",
                          comment = tempComment))        
   }
+}
+
+readAgilentExport.Chromatogram.memory <- function(textLines, sep = ","){
+  force(textLines)
+  force(sep)
+  function(){
+    tempComment <- textLines[1] %>%
+      str_replace_all(pattern = "\\\"", replacement = "") %>%
+      str_replace_all(pattern = "#", replacement = "")
+    tempdf <- map_df(textLines[3:length(textLines)], ~as.data.frame(t(str_split(.x, pattern = sep)[[1]]))) %>%
+      dplyr::select(2,3)
+    colnames(tempdf) <- c("rt", "intensity")
+    tempdf$rt <- as.numeric(tempdf$rt)
+    tempdf$intensity <- as.numeric(tempdf$intensity)
+    readData(dataFrame = tempdf,
+             info = list(source = "Agilent",
+                         comment = tempComment))()
+  }
+}
+
+readAgilentExport.Chromatogram.Multi <- function(filename, sep = ",", seekStart = "#"){
+  force(filename)
+  force(sep)
+  force(seekStart)
+  result <- list()
+  tempLines <- readLines(filename)
+  starts <- which(grepl(tempLines, pattern = seekStart))[c(T,F)] # first line is start & description, second is header
+  starts <- append(starts, length(tempLines)+1)
+  for (counter in 1:(length(starts)-1)){
+    result[[counter]] <- readAgilentExport.Chromatogram.memory(tempLines[starts[counter]:(starts[counter+1]-1)])
+  }
+  return(result)
 }
