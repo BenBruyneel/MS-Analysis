@@ -364,13 +364,13 @@ MSInfo <- R6::R6Class(
     #'
     #' @return the result from the spectrumDetectPeaksMethod or NA
     #' @export
-    spectrum.findPeaks = function(index = 1, id = NA, spectrunDetectPeaksMethod = NA, ...){
+    spectrum.findPeaks = function(index = 1, id = NA, spectrumDetectPeaksMethod = NA, ...){
       if (!identical(id, NA)){
         index <- self$spectra$indexFromId(id = id)
       }
       tempdf <- self$spectra$item(index)
       if (!identical(tempdf, NA)){
-        if (identical(spectrunDetectPeaksMethod, NA)){
+        if (identical(spectrumDetectPeaksMethod, NA)){
           if (identical(self$spectra$info$centroided[index], NA)){
             return(spectrumDetectPeaks(dataFrame = tempdf,
                                        xtraInfo = list(traceId = self$spectra$idFromIndex(index)),
