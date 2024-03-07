@@ -31,7 +31,7 @@ readData <- function(dataFrame = NA,
         force(columnNames)
         force(rowNames)
         force(info)
-        function(){
+        function(...){
                 if (!identical(dataFrame, NA)){
                         if (!identical(columns, NA)){
                                 dataFrame <- dataFrame[, columns]
@@ -76,7 +76,7 @@ readExcel <- function(filename,
         force(columnNames)
         force(rowNames)
         force(additionalInfo)
-        function(){
+        function(...){
                 tempdf <- openxlsx::read.xlsx(filename)[,columns]
                 readData(dataFrame = tempdf,
                          columns = 1:length(columns),
@@ -125,7 +125,7 @@ readChromatogramThermo <- function(filename,
         force(tolerance)
         force(filter)
         force(type)
-        function(){
+        function(...){
                 tempData <- rawrr::readChromatogram(rawfile = filename,
                                                     mass = mz,
                                                     tol = tolerance,
@@ -247,7 +247,7 @@ readSpectrumThermo <- function(filename,
         force(filename)
         force(scan)
         force(centroided)
-        function(){
+        function(parameters = c("basic", "extended", "full")[1]){
                 if (length(scan) > 1){
                         scan <- scan[1]
                 }
@@ -266,6 +266,36 @@ readSpectrumThermo <- function(filename,
                              scan = scan,
                              scanType = tempData[[1]]$scanType,
                              centroided = centroided)
+                if (parameters == "extended"){
+                  info <- append(info,
+                                 list(
+                                 microScanCount = as.integer(tempData[[1]][["Micro Scan Count:"]]),
+                                 ionInjectionTime = as.numeric(tempData[[1]]["Ion Injection Time (ms):"]),
+                                 elapsedTime = as.numeric(tempData[[1]]["Elapsed Scan Time (sec):"]),
+                                 resolutionMS = as.integer(tempData[[1]][["Orbitrap Resolution:"]]),
+                                 masterScan = as.integer(tempData[[1]][["Master Scan Number:"]])))
+                  
+                } else {
+                  if (parameters == "full"){
+                    whichOnes <- which(unname(map_int(tempData[[1]], ~length(.x))) == 1)
+                    tempData[[1]] <- tempData[[1]][whichOnes]
+                    removeOdd <- which(names(tempData[[1]]) == "\001")
+                    tempData[[1]] <- tempData[[1]][-c(removeOdd)]
+                    names(tempData[[1]]) <- strReplaceAll(names(tempData[[1]]),
+                                                          pattern = c(" ", ":", "/", "\\(", "\\)"), replacement = "")
+                    findDoubles <- which(table(names(tempData[[1]])) > 1)
+                    for (counter in 1:length(findDoubles)){
+                      whichOnes <- which(names(tempData[[1]]) == names(findDoubles[counter]))
+                      for (counter in 1:length(whichOnes)){
+                        names(tempData[[1]])[whichOnes[counter]] <- paste(c(names(tempData[[1]])[whichOnes[counter]], "_", counter), collapse = "")
+                      }
+                    }
+                    info <- append(list(source = "thermo",
+                                        filename = filename,
+                                        rt = tempData[[1]]$rtinseconds/60,
+                                        centroided = centroided), tempData[[1]])
+                  }
+                }
                 return(readData(dataFrame = data,
                                 columnNames = c("mz","intensity"),
                                 info = info)())
@@ -313,7 +343,7 @@ readMultipleSpectrumThermo <- function(filename,
 #' @noRd
 fileInfo <- function(filename){
         force(filename)
-        function(){
+        function(...){
                 if (!file.exists(filename)){
                         stop("File does not exist")
                 }
@@ -340,7 +370,7 @@ fileInfoThermo <- function(filename, readIndex = TRUE, collapseCharacter = "-"){
         force(filename)
         force(readIndex)
         force(collapseCharacter)
-        function(){
+        function(...){
                 if (!file.exists(filename)){
                         stop("File does not exist")
                 }
