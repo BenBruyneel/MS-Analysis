@@ -36,12 +36,14 @@ strReplaceAll <- function(string, pattern = NA, replacement = ""){
         return(string)
 }
 
+
+
 fileInfoCSV <- function(filename, infoLines = 1,
                         strPatterns = NA,
                         strReplacements = ""){
         force(filename)
         force(infoLines)
-        function(){
+        function(...){
                 result <- fileInfo(filename)()
                 result$info[["description"]] <- strReplaceAll(readLines(filename, n = infoLines),
                                                               pattern = strPatterns,
@@ -61,7 +63,7 @@ readCSV <- function(filename, columns = 1:2,
         force(skip)
         force(header)
         force(additionalInfo)
-        function(){
+        function(...){
                 tempdf <- utils::read.csv(filename, 
                                           sep = sep, skip = skip,
                                           header = header)[, columns]
@@ -91,7 +93,7 @@ readMultiCSV <- function(filename, nchars = NA, useBytes = FALSE,
         force(linesSplit)
         force(dataSplit)
         force(startTable)
-        function(){
+        function(...){
                 if (identical(nchars, NA)){
                         nchars <- file.size(filename)
                 }
@@ -160,7 +162,7 @@ readAgilentExport.Spectrum <- function(filename){
 
 readAgilentExport.Chromatogram.file <- function(filename){
   force(filename)
-  function(){
+  function(...){
     tempComment <- readLines(filename, n = 1) %>%
       str_replace_all(pattern = "\\\"", replacement = "") %>%
       str_replace_all(pattern = "#", replacement = "")
@@ -175,7 +177,7 @@ readAgilentExport.Chromatogram.file <- function(filename){
 readAgilentExport.Chromatogram.memory <- function(textLines, sep = ","){
   force(textLines)
   force(sep)
-  function(){
+  function(...){
     tempComment <- textLines[1] %>%
       str_replace_all(pattern = "\\\"", replacement = "") %>%
       str_replace_all(pattern = "#", replacement = "")
