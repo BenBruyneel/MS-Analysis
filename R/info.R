@@ -1,5 +1,6 @@
 
 library(R6)
+library(cli)
 library(BBPersonalR)
 
 # ---- info ----
@@ -257,11 +258,12 @@ info <- R6::R6Class(
     #'  Since getting the data may be a slow/long process function factories are used
     #'  which take care of doing the actual retrieving of the data. See eg the
     #'  'readData' function
-    add = function(dataObj = readData(), ...){
-      dataObj <- dataObj(...) # retrieve the data
-      if (!identical(dataObj, NA)){
-        private$data_[[length(private$data_)+1]] <- dataObj$data
-        private$info_ <- dplyr::bind_rows(private$info_, dataObj$info)
+    #'  @param ... allows passing on additional parameters to the function 'data'
+    add = function(data = readData(), ...){
+      data <- data(...) # retrieve the data
+      if (!identical(data, NA)){
+        private$data_[[length(private$data_)+1]] <- data$data
+        private$info_ <- dplyr::bind_rows(private$info_, data$info)
         private$info_$id[nrow(private$info_)] <- as.integer(private$index_)
         private$index_ <- private$index_ + 1L
       }
@@ -273,13 +275,16 @@ info <- R6::R6Class(
     #'  see also 'add'
     #' @param verbose default is FALSE;if TRUE will show a progress bar which
     #'  tracks the adding of the data to the object. Useful when data is coming in slow
-    addMultiple = function(dataObj = NA, verbose = FALSE, ...){
-      
-      if (!identical(dataObj, NA)){
-        for (counter in 1:length(dataObj)){
-          self$add(dataObj = dataObj[[counter]], ...)
-          print(counter)
-        }
+    #' @param ... allows passing on additional parameters to the function factories in 'data'.
+    #'  Note that all 'extra' parameters get added to all items in 'data'
+    addMultiple = function(data = NA, verbose = FALSE, ...){
+      if (!identical(data, NA)){
+              if (verbose) { cli::cli_progress_bar(name = "Loading data", total = length(data)) }
+              for (counter in 1:length(data)){
+                      self$add(data = data[[counter]], ...)
+                      if (verbose) { cli::cli_progress_update() }
+              }
+              if (verbose) { cli::cli_process_done() }
       }
       invisible(self)
     },
