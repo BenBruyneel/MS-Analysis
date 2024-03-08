@@ -350,6 +350,9 @@ plotSpectrumOverlay <- function(spectrumList,
         if (length(spectrumWidths) == 1){
                 spectrumWidths <- rep(spectrumWidths, length(spectrumList))
         }
+        if (length(centroidPlot) == 1){
+          centroidPlot <- rep(centroidPlot, length(spectrumList))
+        }
         if (spectrumAllowChange){
                 if (length(spectrumShift) == 1){
                         spectrumShift <- rep(spectrumShift, length(spectrumList))
@@ -392,17 +395,15 @@ plotSpectrumOverlay <- function(spectrumList,
                 }
         }
         mzRangeSize <- maxMz - minMz
-        
-        if (centroidPlot & !is.na(cutOff)){
-                for (counter in 1:length(spectrumList)){
-                        spectrumList[[counter]] <- spectrumList[[counter]][spectrumList[[counter]][,2] >= (cutOff*maxY),]
-                }
+        for (counter in 1:length(spectrumList)){
+          if (centroidPlot[counter] & !is.na(cutOff)){
+            spectrumList[[counter]] <- spectrumList[[counter]][spectrumList[[counter]][,2] >= (cutOff*maxY),]
+          }
         }
-        
         maxY <- (1+incrScaleIntensity) * maxY
         g <- ggplot()
         for (counter in 1:length(spectrumList)){
-                if (centroidPlot) {
+                if (centroidPlot[counter]) {
                         g <- g + geom_segment(data = spectrumList[[counter]], aes(x = mz, xend = mz, y = 0, yend = intensity),
                                               color = spectrumColors[counter],
                                               alpha = spectrumAlphas[counter],
