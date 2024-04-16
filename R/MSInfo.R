@@ -383,7 +383,7 @@ MSInfo <- R6::R6Class(
             }
           }
         } else {
-          return(spectrunDetectPeaksMethod(dataFrame = tempdf))
+          return(spectrumDetectPeaksMethod(dataFrame = tempdf))
         }
       } else {
         return(NA)
