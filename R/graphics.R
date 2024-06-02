@@ -715,20 +715,23 @@ plotChromatogramOverlay <- function(chromatogramList,
         if (intensityPercentage){
                 chromatogramList[[1]]$intensity <- (chromatogramList[[1]]$intensity/yMaxStored)*100
         }
-        for (counter in 2:length(chromatogramList)){
-                yMaxStored2 <- max(chromatogramList[[counter]]$intensity)
-                if (intensityPercentage){
-                        chromatogramList[[counter]]$intensity <- (chromatogramList[[counter]]$intensity/yMaxStored2)*100
-                }
-                yMaxStored <- max(yMaxStored, yMaxStored2)
+        if (length(chromatogramList) > 1){
+          for (counter in 2:length(chromatogramList)){
+                  yMaxStored2 <- max(chromatogramList[[counter]]$intensity)
+                  if (intensityPercentage){
+                          chromatogramList[[counter]]$intensity <- (chromatogramList[[counter]]$intensity/yMaxStored2)*100
+                  }
+                  yMaxStored <- max(yMaxStored, yMaxStored2)
+          }
         }
         if ((!scaleIntensityLocal) | (is.null(rtLimits))){
                 maxY <- yMaxStored
         } else {
                 maxY <- max(chromatogramList[[1]][(chromatogramList[[1]]$rt >= rtLimits[1]) & (chromatogramList[[1]]$rt <= rtLimits[2]),]$intensity)
-                
-                for (counter in 2:length(chromatogramList)){
-                        maxY <- max(c(maxY, max(chromatogramList[[counter]][(chromatogramList[[counter]]$rt >= rtLimits[1]) & (chromatogramList[[counter]]$rt <= rtLimits[2]),]$intensity)))
+                if (length(chromatogramList) > 1){
+                  for (counter in 2:length(chromatogramList)){
+                          maxY <- max(c(maxY, max(chromatogramList[[counter]][(chromatogramList[[counter]]$rt >= rtLimits[1]) & (chromatogramList[[counter]]$rt <= rtLimits[2]),]$intensity)))
+                  }
                 }
         }
         if (!is.null(rtLimits)){
@@ -737,9 +740,11 @@ plotChromatogramOverlay <- function(chromatogramList,
         } else {
                 maxRt <- max(chromatogramList[[1]]$rt)
                 minRt <- min(chromatogramList[[1]]$rt)
-                for (counter in 2:length(chromatogramList)){
-                        maxRt <- max(c(maxRt, max(chromatogramList[[counter]]$rt)))
-                        minRt <- min(c(minRt, min(chromatogramList[[counter]]$rt)))
+                if (length(chromatogramList) > 1){
+                  for (counter in 2:length(chromatogramList)){
+                          maxRt <- max(c(maxRt, max(chromatogramList[[counter]]$rt)))
+                          minRt <- min(c(minRt, min(chromatogramList[[counter]]$rt)))
+                  }
                 }
         }
         rtRangeSize <- maxRt - minRt

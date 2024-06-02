@@ -262,32 +262,38 @@ info <- R6::R6Class(
     add = function(data = readData(), ...){
       data <- data(...) # retrieve the data
       if (!identical(data, NA)){
-        private$data_[[length(private$data_)+1]] <- data$data
-        private$info_ <- dplyr::bind_rows(private$info_, data$info)
-        private$info_$id[nrow(private$info_)] <- as.integer(private$index_)
-        private$index_ <- private$index_ + 1L
+        for (counter in 1:length(data)){
+          if (!identical(data[[counter]], NA)){
+            private$data_[[length(private$data_)+1]] <- data[[counter]]$data
+            private$info_ <- dplyr::bind_rows(private$info_, data[[counter]]$info)
+            private$info_$id[nrow(private$info_)] <- as.integer(private$index_)
+            private$index_ <- private$index_ + 1L
+          }
+        }
       }
       invisible(self)
     },
-    #' @description adds multiple (data + info) elements to the object
-    #' 
-    #' @param data is expected to be a vector of function factories, such as readData(),
-    #'  see also 'add'
-    #' @param verbose default is FALSE;if TRUE will show a progress bar which
-    #'  tracks the adding of the data to the object. Useful when data is coming in slow
-    #' @param ... allows passing on additional parameters to the function factories in 'data'.
-    #'  Note that all 'extra' parameters get added to all items in 'data'
-    addMultiple = function(data = NA, verbose = FALSE, ...){
-      if (!identical(data, NA)){
-              if (verbose) { cli::cli_progress_bar(name = "Loading data", total = length(data)) }
-              for (counter in 1:length(data)){
-                      self$add(data = data[[counter]], ...)
-                      if (verbose) { cli::cli_progress_update() }
-              }
-              if (verbose) { cli::cli_process_done() }
-      }
-      invisible(self)
-    },
+    
+    #' #' @description adds multiple (data + info) elements to the object
+    #' #' 
+    #' #' @param data is expected to be a vector of function factories, such as readData(),
+    #' #'  see also 'add'
+    #' #' @param verbose default is FALSE;if TRUE will show a progress bar which
+    #' #'  tracks the adding of the data to the object. Useful when data is coming in slow
+    #' #' @param ... allows passing on additional parameters to the function factories in 'data'.
+    #' #'  Note that all 'extra' parameters get added to all items in 'data'
+    #' addMultiple = function(data = NA, verbose = FALSE, ...){
+    #'   if (!identical(data, NA)){
+    #'           if (verbose) { cli::cli_progress_bar(name = "Loading data", total = length(data)) }
+    #'           for (counter in 1:length(data)){
+    #'                   self$add(data = data[[counter]], ...)
+    #'                   if (verbose) { cli::cli_progress_update() }
+    #'           }
+    #'           if (verbose) { cli::cli_process_done() }
+    #'   }
+    #'   invisible(self)
+    #' },
+
     #' @description deletes a data item from the data_ list and removes the
     #'  corresponding row from the info_ data.frame
     #'  
@@ -1136,8 +1142,321 @@ infoDatabase <- R6::R6Class(
   )
 )
 
-# ---- create Info Objects ----
+# ---- infoExtend ----
 
+#' R6 Class extension to 'info' class with basic database support
+#'  
+#' @description 
+#'  Essentially gives functions to regulate saving/loading to/from a database
+#'  All data is saved in blobs in database tab;es. The blobs are compressed json style tables,
+#'  see dfToBlob & blodToDf functions for details
+#'
+#' @export 
+infoExtend <- R6::R6Class(
+  "infoExtend",
+  inherit = info,
+  private = list(
+    dbType_ = "SQLite",
+    # no real function at this time, database workings are handled by database functions
+    # of the BBPersonalR package
+    infoTablename_ = "info",
+    # defines the name of the table name for the info_ data.frame
+    dataTablename_ = "data",
+    # defines the name of the table name for the data_ list
+    # all data.frame's in the data_list are combined together into one big table with each
+    # separate data.frame in it's own row. See ?BBPersonalR::convertDFtoDB for more info
+    compression_ = "gzip",
+    # compression type, see ?memCompress
+    type_ = "infoExtend",
+    # defines which info type object this is
+    #' @description
+    #'  gives the names of the database tables for info_ and data_. Nothing more than pasting togther
+    #'  the 'filename'/'name' field with either '_info' and '_data'
+    #'  
+    #' @param whichTable defines which tablename to return. Can only be "info" or "data"
+    #' 
+    #' @note convenience function, nothing more
+    tableName_ = function(whichTable){
+      return(
+        switch(whichTable,
+               info = ifelse(self$name != "",
+                             paste(c(
+                               self$name,
+                               "_",self$infoTableName), collapse = ""),
+                             self$infoTableName
+               ),
+               data = ifelse(self$name != "",
+                             paste(c(
+                               self$name,
+                               "_",self$dataTableName), collapse = ""),
+                             self$dataTableName)
+        )
+      )
+    },
+    #' @description 
+    #'  saves either the info_ data.frame or the data_ list (list of data.frame's) to the database
+    #'  
+    #' @param db database access 'handle' to be closed. Database needs to be open!
+    #'  Opening & closing the database shpuld be handled outside the object's code
+    #' @param saveWhat defines what should be saved. Can only be "info" or "data"
+    #' @param overwrite logical vector that defines what to do if there is already
+    #'  a table with the filename to be used
+    #' 
+    #' @return logical vector: TRUE if save was successful, FALSE if unsuccessful 
+    save_ = function(db, saveWhat = "info", overwrite = TRUE,
+                     dataAll = TRUE){
+      if (saveWhat %in% c("info", "data")){
+        tablesPresent <- pool::dbListTables(db)
+        if (length(tablesPresent)>0){
+          if (private$tableName_(saveWhat) %in% tablesPresent){
+            if (!overwrite & self$showWarnings){
+              # abort save action
+              warning("Table already exists & overwrite is FALSE")
+              return(FALSE)
+            } else {
+              SQLString <- paste0("DROP TABLE IF EXISTS ", private$tableName_(saveWhat))
+              dbSQLCommand(db, SQLString = SQLString, execute = T, invisibleReturn = T)()
+            }
+          }
+        }
+        if ((saveWhat == "info") | ((saveWhat == "data") & dataAll)){
+          SQLString <- paste(c("CREATE TABLE ", private$tableName_(saveWhat),
+                               " (data BLOB, rownames BLOB, classes BLOB, factors BLOB)"), collapse = "")
+        } else {
+          SQLString <- paste(c("CREATE TABLE ", private$tableName_(saveWhat),
+                               " (data BLOB)"), collapse = "")
+        }
+        dbSQLCommand(db = db, SQLString = SQLString, execute = T, invisibleReturn = T)()
+        if (saveWhat == "data"){
+          # change empty data_ elements into empty data.frame's
+          # there must be at least one data element with a data.frame
+          # if (sum(is.na(private$data_)) > 0){
+          #   firstDF <- which(!is.na(private$data_))[1]
+          #   emptyData <- which(is.na(private$data_))
+          #   private$data_[[emptyData]] <- private$data_[[firstDF]][0,]
+          #   private$data_[[emptyData]][1,] <- NA
+          # }
+          pb <- progress_bar$new(
+            format = "(:spin) [:bar] :percent | ETA::eta",
+            total = self$length, clear = TRUE, width = 60)
+          for (counter in 1:self$length){
+            if (dataAll){
+              dataInsert <- dfToBlob(df = private$data_[[counter]],
+                                     storeRownames = T, storeClasses = T, storeFactors = T)
+              SQLString <- paste(c("INSERT INTO ",
+                                   private$tableName_(saveWhat),
+                                   " (data, rownames, classes, factors) VALUES (?id0, ?id1, ?id2, ?id3)"), collapse = "")
+              SQLString <- DBI::sqlInterpolate(conn = db,
+                                               sql = SQLString,
+                                               id0 = dataInsert[[1]],
+                                               id1 = dataInsert[[2]],
+                                               id2 = dataInsert[[3]],
+                                               id3 = dataInsert[[4]])
+            } else {
+              dataInsert <- dfToBlob(df = private$data_[[counter]],
+                                     storeRownames = FALSE, storeClasses = FALSE, storeFactors = FALSE)
+              SQLString <- paste(c("INSERT INTO ",
+                                   private$tableName_(saveWhat),
+                                   " (data) VALUES (?id0)"), collapse = "")
+              SQLString <- DBI::sqlInterpolate(conn = db,
+                                               sql = SQLString,
+                                               id0 = dataInsert[[1]])
+            }
+            dbSQLCommand(db = db, SQLString = SQLString, execute = T, invisibleReturn = T)()
+            pb$tick()
+          }
+        } else {
+          dataInsert <- dfToBlob(df = private$info_,
+                                 storeRownames = T, storeClasses = T, storeFactors = T)
+          SQLString <- paste(c("INSERT INTO ",
+                               private$tableName_(saveWhat),
+                               " (data, rownames, classes, factors) VALUES (?id0, ?id1, ?id2, ?id3)"), collapse = "")
+          SQLString <- DBI::sqlInterpolate(conn = db,
+                                           sql = SQLString,
+                                           id0 = dataInsert[[1]],
+                                           id1 = dataInsert[[2]],
+                                           id2 = dataInsert[[3]],
+                                           id3 = dataInsert[[4]])
+          dbSQLCommand(db = db, SQLString = SQLString, execute = T, invisibleReturn = T)()
+        }
+        return(TRUE)
+      }
+      return(FALSE)
+    },
+    #' @description
+    #'  internal function that loads either the info_ data.frame or the data_ list from
+    #'  the database
+    #'  
+    #' @param db database access 'handle' to be closed. Database needs to be open!
+    #'  Opening & closing the database shpuld be handled outside the object's code
+    #' @param loadWhat defines what should be loaded. Can only be "info" or "data"
+    #' @param dataAll defines if data should be loaded using rownames, classes & factors, default is
+    #'  TRUE
+    #' 
+    #' @return logical vector: TRUE if load_ was successful, FALSE if unsuccessful
+    load_ = function(db, loadWhat = "info", dataAll = TRUE){
+      if (loadWhat %in% c("info","data")){
+        if (private$tableName_(loadWhat) %in% pool::dbListTables(db)){
+          theData <- dbSQLCommand(db = dbs, SQLString = paste0("SELECT * FROM ",
+                                                               private$tableName_(loadWhat)))()
+          if (loadWhat == "info"){
+            private$info_ <- theData |> as.list() |> blobToDf(restoreRownames = T,
+                                                              restoreClasses = T,
+                                                              restoreFactors = T)
+          } else {
+            private$data_ <- list()
+            pb <- progress_bar$new(
+              format = "(:spin) [:bar] :percent | ETA::eta",
+              total = nrow(theData), clear = TRUE, width = 60)
+            for (counter in 1:nrow(theData)){
+              if (dataAll){
+                private$data_[[counter]] <- as.list(theData[counter,]) |>
+                  blobToDf(restoreRownames = T, restoreClasses = T, restoreFactors = T)
+              } else {    # cannot use as.list(theData[counter,]) due to that data does not stay df
+                private$data_[[counter]] <- as.list(theData %>% dplyr::slice(counter)) |> 
+                  blobToDf(restoreRownames = F, restoreClasses = F, restoreFactors = F)
+              }
+              pb$tick()
+            }
+          }
+          return(TRUE)
+        }
+      }
+      return(FALSE)
+    }
+  ),
+  public = list(
+    #' @description saves the info_ data.frame and if that is successful saves
+    #'  the data_ list to a database
+    #'  
+    #' @param db database access 'handle' to be closed. Database needs to be open!
+    #'  Opening & closing the database shpuld be handled outside the object's code
+    #' @param overwrite logical vector that defines what to do if there is already
+    #'  a table with the tablename to be used
+    #' @param dataAll defines if data should be saved using rownames, classes & factors, default is
+    #'  TRUE
+    #'  
+    #' @return logical vector TRUE if save was completely successful, FALSE if
+    #'  one or both were unsuccessful. Note that if the info_ data.frame is
+    #'  successfully saved, but the data_ list is not (for whatever reason),
+    #'  then FALSE will be returned. Also note that if the info_ data.frame
+    #'  could not be saved, that there will be no attempt at saving the data_ list.
+    save = function(db, overwrite = TRUE, dataAll = TRUE){
+      result <- FALSE
+      if (!self$empty){
+        if (private$save_(db, saveWhat = "info",
+                          overwrite = overwrite)){
+          result <- private$save_(db, saveWhat = "data",
+                                  overwrite = overwrite,
+                                  dataAll = dataAll)
+        }
+      }
+      names(result) <- self$name
+      return(result)
+    },
+    #' @description loads the info_ data.frame and if that is successful loads
+    #'  the data_ list
+    #'  
+    #' @param db database access 'handle' to be closed. Database needs to be open!
+    #'  Opening & closing the database shpuld be handled outside the object's code
+    #' @param dataAll defines if data should be loaded using rownames, classes & factors, default is
+    #'  TRUE
+    #'  
+    #' @return logical vector TRUE if load was completely successful, FALSE if
+    #'  one or both were unsuccessful. Note that if the info_ data.frame is
+    #'  successfully loaded, but the data_ list is not (for whatever reason),
+    #'  then FALSE will be returned. Also note that if the info_ data.frame
+    #'  could not be loaded, that there will be no attempt at loading the
+    #'  data_ list
+    #'  
+    #' @note the original info_ data.frame will be restored if loading
+    #'  the data_ list fails
+    load = function(db, dataAll = FALSE){
+      saveOld <- list(
+        info_ = private$info_
+      )
+      result <- FALSE
+      if (private$load_(db = db, loadWhat = "info")){
+        if (private$load_(db = db, loadWhat = "data", dataAll = dataAll)){
+          private$index_ <- max(private$info_$id) + 1
+          result <- TRUE
+        } else {
+          # restore old info
+          private$info_ <- saveOld$info_
+        }
+      }
+      names(result) <- self$name
+      return(result)
+    }
+  ),
+  active = list(
+    #' @field databaseType allows for the setting of the database type
+    #'  currently has no function in the object
+    databaseType = function(value){
+      if (missing(value)){
+        return(private$dbType_)
+      } else {
+        if (value == "SQLite"){
+          private$dbType <- value
+        } else {
+          if (self$showWarnings){
+            warning(paste(c("Database type '", value, "' not supported! ")))
+          }
+        }
+      }
+    },
+    #' @field infoTableName can be used to overwrite the info table name
+    infoTableName = function(value){
+      if (missing(value)){
+        return(private$infoTablename_)
+      } else {
+        if (value != private$dataTablename_){
+          private$infoTablename_ <- value
+        } else {
+          if (self$showWarnings){
+            warning("info & data table names must be different.")
+          }
+        }
+      }
+    },
+    #' @field dataTableName can be used to overwrite the data table name
+    dataTableName = function(value){
+      if (missing(value)){
+        return(private$dataTablename_)
+      } else {
+        if (value != private$infoTablename_){
+          private$dataTablename_ <- value
+        } else {
+          if (self$showWarnings){
+            warning("info & data table names must be different.")
+          }
+        }
+      }
+    },
+    #' @field blobConvert convert data to raw vector or not, see ?BBPersonalR::convertDFtoDB
+    blobConvert = function(value){
+      if (missing(value)){
+        return(private$blobConvert_)
+      } else {
+        if (is.logical(value)){
+          private$blobConvert_ <- value 
+        }
+      }
+    },
+    #' @field compression gets/sets compression type, see ?memCompress
+    compression = function(value){
+      if (missing(value)){
+        return(private$compression_)
+      } else {
+        if (value %in% c("gzip", "bzip2", "xz", "none")){
+          private$compression_ <- value 
+        }
+      }
+    }
+  )
+)
+
+# ---- create Info Objects ----
 
 #' Createa R6 object of type info, infoDB, etc
 #'
@@ -1153,6 +1472,7 @@ createInfo <- function(type = "infoDatabase", name = ""){
          "infoDB" = infoDB$new(name = name),
          "infoDBVariable" = infoDBVariable$new(name = name),
          "infoDatabase" = infoDatabase$new(name = name),
+         "infoExtend" = infoExtend$new(name = name),
          NA
   )
 }
@@ -1165,15 +1485,17 @@ createInfo <- function(type = "infoDatabase", name = ""){
 #' @param path path to which the info object is to be saved (if it is not a database info type)
 #' @param filename filename to which the info object is to be saved (if it is not a database info type) 
 #' @param overwrite sets the overwrite logical vector. Default is TRUE (will overwrite existing data)
+#' @param ... for additional parameters to pass on to the save function
 #'
 #' @return logical vector: TRUE if successful, FALSE if not
 #' @export
-saveInfo <- function(infoObject, db, path = "", filename = "", overwrite = TRUE){
+saveInfo <- function(infoObject, db, path = "", filename = "", overwrite = TRUE, ...){
   switch(infoObject$type,
          "info" = infoObject$save(filename = filename, path = path, overwrite = overwrite),
          "infoDB" = infoObject$save(db = db, overwrite = overwrite),
          "infoDBVariable" = infoObject$save(db = db, overwrite = overwrite),
          "infoDatabase" = infoObject$save(db = db, overwrite = overwrite),
+         "infoExtend" = infoObject$save(db = db, overwrite = overwrite, ...),
          FALSE
   )
 } 
@@ -1185,15 +1507,17 @@ saveInfo <- function(infoObject, db, path = "", filename = "", overwrite = TRUE)
 #' @param db database handle to which the info object is to be saved (if it is a database info type)
 #' @param path path to which the info object is to be saved (if it is not a database info type)
 #' @param filename filename to which the info object is to be saved (if it is not a database info type) 
+#' @param ... for additional parameters to pass on to the load function
 #'
 #' @return logical vector: TRUE if successful, FALSE if not
 #' @export
-loadInfo <- function(infoObject, db, path = "", filename = ""){
+loadInfo <- function(infoObject, db, path = "", filename = "", ...){
   switch(infoObject$type,
          "info" = infoObject$load(filename = filename, path = path),
          "infoDB" = infoObject$load(db = db),
          "infoDBVariable" = infoObject$load(db = db),
          "infoDatabase" = infoObject$load(db = db),
+         "infoExtend" = infoObject$load(db = db, ...),
          FALSE
   )
 } 
@@ -1290,15 +1614,17 @@ infoList <- R6::R6Class(
     #' @param db database access 'handle' from which data is to be loaded
     #' @param path path where to place file, should end in '/'
     #' @param filename prefix to the filename to be added
+    #' @param ... for additional parameters to pass on to the load function
     #'  
     #' @note this does not work if "rds" was chosen as type of info object
     #'  (see initialize)
-    load = function(db, path = "", filename = ""){
+    load = function(db, path = "", filename = "", ...){
       tempL <- as.logical()
       for (counter in 1:self$length){
         tempL <- append(tempL, loadInfo(private$info_[[counter]], db = db,
                                         path = path,
-                                        filename = filename))
+                                        filename = filename,
+                                        ...))
       }
       names(tempL) <- self$names
       return(tempL)
@@ -1310,14 +1636,16 @@ infoList <- R6::R6Class(
     #' @param path path where to place file, should end in '/'
     #' @param filename prefix to the filename to be added
     #' @param overwrite logical vector that defines what to do if there is already
+    #' @param ... for additional parameters to pass on to the save function
     #'  a file with the filename or a table with the tablename to be used 
-    save = function(db, path = "", filename = "", overwrite = TRUE){
+    save = function(db, path = "", filename = "", overwrite = TRUE, ...){
       tempL <- as.logical()
       for (counter in 1:self$length){
         tempL <- append(tempL, saveInfo(private$info_[[counter]], db = db,
                                         path = path,
                                         filename = filename,
-                                        overwrite = overwrite))
+                                        overwrite = overwrite,
+                                        ...))
       }
       names(tempL) <- self$names
       return(tempL)

@@ -43,14 +43,31 @@ MSInfo <- R6::R6Class(
     #' @param db database access 'handle' from which data is to be loaded
     #' @param path path where to place file, should end in '/'
     #' @param filename prefix to the filename to be added
+    #' @param dataAll defines if data should be loaded using rownames, classes & factors, default is
+    #'  FALSE
     #'  
     #' @note this does not work if "rds" was chosen as type of info object
     #'  (see initialize)
-    load = function(db, path = "", filename = ""){
-      tempL <- super$load(db = db, path = path, filename = filename)
+    load = function(db, path = "", filename = "", dataAll = FALSE){
+      tempL <- super$load(db = db, path = path, filename = filename, dataAll = dataAll)
       if (self$spectra$length > 0){
         self$spectra$info$centroided <- as.logical(self$spectra$info$centroided)
       }
+      return(tempL)
+    },
+    #' @description 
+    #'  saves the info objects to a database
+    #'  
+    #' @param db database access 'handle' to which data is to be saved
+    #' @param path path where to place file, should end in '/'
+    #' @param filename prefix to the filename to be added
+    #' @param overwrite logical vector that defines what to do if there is already
+    #'  a file with the filename or a table with the tablename to be used 
+    #' @param dataAll defines if data should be saved using rownames, classes & factors, default is
+    #'  FALSE
+    save = function(db, path = "", filename = "", overwrite = TRUE, dataAll = FALSE){
+      tempL <- super$save(db = db, path = path, filename = filename, overwrite = overwrite,
+                          dataAll = dataAll)
       return(tempL)
     },
     #' @description 

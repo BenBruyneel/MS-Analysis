@@ -1,4 +1,25 @@
 
+strReplaceAll <- function(string, pattern = NA, replacement = ""){
+  if (identical(pattern, NA)){
+    return(string)
+  }
+  if (length(replacement) == 1){
+    replacement <- rep(replacement, length(pattern))
+  } else {
+    if (length(replacement) != length(pattern)){
+      stop("pattern & replacement arguments must be of same length")
+    }
+  }
+  for (strCounter in 1:length(string)){
+    for (counter in 1:length(pattern)){
+      string[strCounter] <- stringr::str_replace_all(string[strCounter],
+                                                     pattern = pattern[counter],
+                                                     replacement = replacement[counter])
+    }
+  }
+  return(string)
+}
+
 #' function to generate a series of labels for ions
 #' 
 #' @note all arguments, except where indicated, are character vectors
